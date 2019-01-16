@@ -1,10 +1,4 @@
----
-title: "PSQF 7375: Bayesian Psychometric Modeling Syllabus"
-output: word_document
----
-
-*_Note:_ The online syllabus at the address provided above will always have the most current information.*
-
+This repository contains course files and information for PSQF 7375: Bayesian Psychometric Modeling, initially taught in Spring 2019 at the University of Iowa. During the term, the syllabus will appear below:
 
 ## Course Information
 
