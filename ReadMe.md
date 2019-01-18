@@ -6,7 +6,7 @@ This repository contains course files and information for PSQF 7375: Bayesian Ps
 |-------------------------------------|------------------------------------:|
 |Instructor:                          |                     Jonathan Templin|
 |email:                               |           jonathan-templin@uiowa.edu|
-|Course website:                      | https://jonathantemplin.com/bayesian-psychometric-modeling-spring-2018/    |
+|Course website:                      | https://jonathantemplin.com/bayesian-psychometric-modeling-spring-2019/    |
 |Office:                              |               224B1 Lindquist Center South|
 |Office Phone: | 319-335-6429 |
 |Classroom:                           |                N203 Lindquist Center|
