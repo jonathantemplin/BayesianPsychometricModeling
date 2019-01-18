@@ -20,7 +20,7 @@ The course will follow the chapters of Bayesian Psychometric Modeling (2017) by 
 
 ### Course Objectives, Materials, and Prerequesites
 
-In this course a unified Bayesian modeling approach will be presented  across traditionally separate families of psychometric models. Focusing more directly how to use Bayesian methods in psychometrics, this course will to cover Bayesian theory along with applied treatments of popular psychometric models, including classical test theory, confirmatory factor analysis (CFA), item response theory (IRT), latent class analysis, diagnostic classification models, and Bayesian networks. The course will follow the chapters of the Levy and Mislevy (2016) text and may feature some additional references when necessary. 
+In this course a unified Bayesian modeling approach will be presented  across traditionally separate families of psychometric models. Focusing more directly how to use Bayesian methods in psychometrics, this course will to cover Bayesian theory along with applied treatments of popular psychometric models, including classical test theory, confirmatory factor analysis (CFA), item response theory (IRT), latent class analysis, diagnostic classification models, and Bayesian networks. The course will follow the chapters of the Levy and Mislevy (2017) text and may feature some additional references when necessary. 
 
 ## Tentative Course Schedule
 
