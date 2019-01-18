@@ -16,7 +16,7 @@ This repository contains course files and information for PSQF 7375: Bayesian Ps
  
 ### Course Textbook
 
-The course will follow the chapters of Bayesian Psychometric Modeling (2016) by Roy Levy and Bob Mislevy. The University of Iowa Library has electronic access to the book at https://ebookcentral.proquest.com/lib/uiowa/detail.action?docID=4532358. 
+The course will follow the chapters of Bayesian Psychometric Modeling (2017) by Roy Levy and Bob Mislevy. The University of Iowa Library has electronic access to the book at https://ebookcentral.proquest.com/lib/uiowa/detail.action?docID=4532358. 
 
 ### Course Objectives, Materials, and Prerequesites
 
