@@ -11,7 +11,7 @@ Also, you can view the contents of this repository on GitHub pages at https://jo
 1. [Introduction (files only)](https://github.com/jonathantemplin/BayesianPsychometricModeling/tree/master/Lectures/01-Introduction)
 2. [Git, RStudio, and R Markdown](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/02-Git-RStudio-R-Markdown/bpm19psqf7375_Lecture02.html)
 3. [Levy and Mislevy (2017), Chapter 1](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/03-Chapter01/bpm19psqf7375_Lecture03.html)
-4. [Levy and Mislevy (2017), Chapter 2](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/03-Chapter02/bpm19psqf7375_Lecture04.html)
+4. [Levy and Mislevy (2017), Chapter 2](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/04-Chapter02/bpm19psqf7375_Lecture04.html)
 
 
 ## References
