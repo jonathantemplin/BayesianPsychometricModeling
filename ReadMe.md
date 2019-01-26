@@ -2,4 +2,4 @@ This repository contains course files and information for PSQF 7375: Bayesian Ps
 
 ## Lectures
 1. Introduction
-2. [Con](Lectures/02-Git-RStudio-R-Markdown)
+2. [Git, RStudio, and R Markdown](Lectures/02-Git-RStudio-R-Markdown/bpm19psqf7375_Lecture02.html)
