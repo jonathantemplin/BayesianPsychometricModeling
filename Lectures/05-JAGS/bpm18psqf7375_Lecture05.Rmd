@@ -1,0 +1,142 @@
+---
+title: "Introduction to JAGS"
+author: "Bayesian Psychometric Models, Lecture 5"
+output: html_document
+---
+
+JAGS stands for Just Another Gibbs Sampler and is a program that can build a large number of Bayesian models.
+
+In order to following along during this lecture, please download and install JAGS from 
+[https://sourceforge.net/projects/mcmc-jags/](https://sourceforge.net/projects/mcmc-jags/). This lecture is based on version 4.3.0 of JAGS.
+
+The JAGS user manual, available from [https://sourceforge.net/projects/mcmc-jags/files/Manuals/4.x/jags_user_manual.pdf/download](https://sourceforge.net/projects/mcmc-jags/files/Manuals/4.x/jags_user_manual.pdf/download), is a good to read as it provides many details on how to use JAGS. 
+
+We will initially use the `rjags` package, which is described in detail in the JAGS user manual. You can install and/or load it from the following syntax chunk:
+
+```{r installRjags}
+if (!require(rjags)) install.packages("rjags")
+library(rjags)
+```
+
+Additionally, we will use the `R2jags` package which can be installed using the following chunk of syntax. The R2jags package does a lot of the labor intensive work for us, making it much easier (and faster) to run JAGS. 
+
+```{r installR2jags}
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+```
+
+Finally, we will use the `coda` package to examine the JAGS model output for convergence and to summarize the posterior distribution. You can install and load coda from the chunk below:
+
+```{r installCoda}
+if (!require(coda)) install.packages("coda")
+library(coda)
+```
+
+
+To demonstrate JAGS in our introduction, we will use the syntax provided on p. 39 of Levy and Mislevy (2017) that estimates the probability parameter $\theta$ for a 7-success in 10-trail set of data, using a binomial distribution. The text file `model01.jags`, which is in the current directory of the repo, has a shortened version of this syntax. Note, you can avoid having to go outside of RStudio by enclosing the model in quotes and saving it as a variable. To pass it to the `jags.model()` function, put the name of the variable in the `textConnection` function.
+
+To run JAGS several steps must be undertaken: 
+1. The "data" (i.e., everything JAGS depends on and won't sample) must be listed
+2. The model must be compiled
+3. The model must be "adapted" (tuned)
+4. The samples must be drawn from the posterior distribution
+
+```{r rjags}
+  
+# parts of data needing to be passed to JAGS:
+J = 10
+y = 7
+alpha = 1
+beta = 1
+
+model01.text = "
+
+model{
+  # PRIOR DISTRIBUTION ######################################################
+  theta ~ dbeta(alpha, beta)
+  
+  # P(X|THETA) - COND. DIST. OF DATA (AKA LIKELIHOOD) #######################
+  y ~ dbin(theta, J)
+
+}
+"
+
+# compile the JAGS model and run first part of adaptation phase (you may have to change the path to the model file)
+model01 = jags.model(file = textConnection(model01.text), 
+                     data = list(J = J, y = y, alpha = alpha, beta = beta), 
+                     inits = list(theta=runif(1)),
+                     n.chains = 5, 
+                     n.adapt = 1000)
+
+# not needed but included for didactic purposes (shows the algorithm that will be used)
+list.samplers(model01)
+
+# draw samples from the posterior of the model
+model01.samples = coda.samples(model = model01, 
+                               variable.names = "theta", 
+                               n.iter = 1000)
+
+# samples are drawn as a coda mcmc.list object, so you can use some generic function with them:
+summary(model01.samples)
+
+# plotting the chain:
+plot(model01.samples)
+
+# looking at convergence (discussed in a later class)
+gelman.diag(model01.samples)
+
+```
+
+Next, `R2jags` can be used to run the same model. Here, the model is put into an R function (without the "model{}" open/closing brackets). This method 
+
+```{r modelSyntax}
+# parts of data needing to be passed to JAGS:
+J = 10
+y = 7
+alpha = 1
+beta = 1
+
+binomialModel01 = function(){
+  
+  # PRIOR DISTRIBUTION ######################################################
+  theta ~ dbeta(alpha, beta)
+  
+  # P(X|THETA) - COND. DIST. OF DATA (AKA LIKELIHOOD) #######################
+  y ~ dbin(theta, J)
+  
+}
+
+# initial values of parameters:
+jags.inits <- function(){
+    list("theta"=runif(1))
+}
+
+
+model01.R2jags = jags(data = list(J = J, y = y, alpha = alpha, beta = beta), 
+                      inits = jags.inits,
+                      parameters.to.save = "theta", 
+                      model.file = binomialModel01, 
+                      working.directory = getwd())
+
+# now to see the output use the print function
+print(model01.R2jags)
+
+# the plot function changes to traceplot
+traceplot(model01.R2jags)
+
+# or you can use the coda plotting and summary functions
+plot(as.mcmc(model01.R2jags))
+summary(as.mcmc(model01.R2jags))
+
+# if the chain did not converge, you can use the autojags function to run and check it automatically
+model01.auto = autojags(object = model01.R2jags)
+
+
+
+plot(as.mcmc(model01.auto))
+summary(as.mcmc(model01.auto))
+
+```
+
+Now you can try playing around with the syntax by picking other distributions for the prior or changing the values of the prior's parameters.
+
