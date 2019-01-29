@@ -12,7 +12,7 @@ Also, you can view the contents of this repository on GitHub pages at https://jo
 2. [Git, RStudio, and R Markdown](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/02-Git-RStudio-R-Markdown/bpm19psqf7375_Lecture02.html)
 3. [Levy and Mislevy (2017), Chapter 1](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/03-Chapter01/bpm19psqf7375_Lecture03.html)
 4. [Levy and Mislevy (2017), Chapter 2](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/04-Chapter02/bpm19psqf7375_Lecture04.html)
-5. [Introduction to JAGS](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/05-JAGS/bpm19psqf7375_Lecture05.html); Must have JAGS installed to run R syntax. JAGS available from [https://sourceforge.net/projects/mcmc-jags/](https://sourceforge.net/projects/mcmc-jags/).
+5. [Introduction to JAGS](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/05-JAGS/bpm18psqf7375_Lecture05.html); Must have JAGS installed to run R syntax. JAGS available from [https://sourceforge.net/projects/mcmc-jags/](https://sourceforge.net/projects/mcmc-jags/).
 6. [Levy and Mislevy (2017), Chapter 3](https://jonathantemplin.github.io/BayesianPsychometricModeling/Lectures/06-Chapter03/bpm19psqf7375_Lecture06.html)
 
 
