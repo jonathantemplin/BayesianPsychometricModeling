@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## In This Lecture:
 
 1. Git (and how to access the course GitHub repo)
-2. RStudio (and how to use Git within RStudio)
+2. RStudio (and how to use Git within RStudio) -- Bad idea
 3. R Markdown (and how to make it run to play with syntax during class)
 
 

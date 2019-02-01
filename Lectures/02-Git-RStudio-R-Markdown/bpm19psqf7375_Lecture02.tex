@@ -1,0 +1,465 @@
+\documentclass[ignorenonframetext,]{beamer}
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\newif\ifbibliography
+\hypersetup{
+            pdftitle={An Introduction to Git, RStudio, and R Markdown},
+            pdfauthor={Bayesian Psychometric Models, Lecture 2},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight0.8\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+
+% Prevent slide breaks in the middle of a paragraph:
+\widowpenalties 1 10000
+\raggedbottom
+
+\AtBeginPart{
+  \let\insertpartnumber\relax
+  \let\partname\relax
+  \frame{\partpage}
+}
+\AtBeginSection{
+  \ifbibliography
+  \else
+    \let\insertsectionnumber\relax
+    \let\sectionname\relax
+    \frame{\sectionpage}
+  \fi
+}
+\AtBeginSubsection{
+  \let\insertsubsectionnumber\relax
+  \let\subsectionname\relax
+  \frame{\subsectionpage}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+
+\title{An Introduction to Git, RStudio, and R Markdown}
+\author{Bayesian Psychometric Models, Lecture 2}
+\date{}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}
+
+\end{frame}
+
+\begin{frame}{In This Lecture:}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Git (and how to access the course GitHub repo)
+\item
+  RStudio (and how to use Git within RStudio)
+\item
+  R Markdown (and how to make it run to play with syntax during class)
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}{Git Clients}
+
+\begin{itemize}
+\tightlist
+\item
+  If you use a Mac/Linux machine, you already have a client as part of
+  the OS.
+\item
+  If you use Windows, you will have to download and install a client to
+  use Git
+
+  \begin{itemize}
+  \tightlist
+  \item
+    A good client to use with RStudio is
+    \url{https://git-scm.com/download/win}
+  \end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{The Basics of Git}
+
+\begin{itemize}
+\tightlist
+\item
+  Git is a version control system that helps to keep track of changes to
+  files across the lifespan of a project
+
+  \begin{itemize}
+  \tightlist
+  \item
+    It is also great for using in collaboration with others
+  \end{itemize}
+\item
+  An overview of Git is given in many places here are a few:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \url{http://rogerdudler.github.io/git-guide/} (thank you,
+    Dr.~LeBeau)
+  \item
+    \url{https://git-scm.com/book/en/v2/Getting-Started-Git-Basics}
+  \end{itemize}
+\item
+  I will use these websites to help introduce you to Git concepts
+\item
+  Also, I will highlight the GitHub site with our course repo:
+  \url{https://github.com/jonathantemplin/BayesianPsychometricModeling}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Using Git with R Studio}
+
+\begin{itemize}
+\tightlist
+\item
+  Git makes our life easy when used with RStudio as we can use it to
+  keep a current copy of our course notes available
+
+  \begin{itemize}
+  \tightlist
+  \item
+    We will use Git to download and update our course materials in
+    RStudio
+  \end{itemize}
+\item
+  Do do this:
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \tightlist
+  \item
+    Open RStudio
+  \item
+    At the menu on the top, go to File\ldots{}New Project
+  \item
+    Select ``Version Control'' on the ``Create Project'' window
+  \item
+    Select ``Git'' on the ``Create Project from Version Control'' window
+  \item
+    On the ``Clone Git Repository'' window input:
+
+    \begin{itemize}
+    \tightlist
+    \item
+      Repository URL:
+      \url{https://github.com/jonathantemplin/BayesianPsychometricModeling}
+    \item
+      Project directory name: Choose a directory name for the course
+      materials (such as ``BPM Git Repo'')
+
+      \begin{itemize}
+      \tightlist
+      \item
+        NOTE: The master branch has an up-to-date R project file
+        (.Rproj) that will have all files included.
+      \end{itemize}
+    \item
+      Create project as a subdirectory of: Choose a location for your
+      files to reside within on your local machine
+    \end{itemize}
+  \end{enumerate}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Using RStudio}
+
+\begin{itemize}
+\tightlist
+\item
+  Next I will demonstrate RStudio for you using the contents of last
+  week's R script file
+\item
+  For more information about the RStudio Integrated Development
+  Environment (IDE), see the following links:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \url{https://www.rstudio.com/online-learning/}
+  \item
+    \url{https://dss.princeton.edu/training/RStudio101.pdf}
+  \end{itemize}
+\item
+  Also, to really unlock RStudio's full potential, familiarize yourself
+  with its keyboard shortcuts:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    In the top menu, go to Tools\ldots{}Keyboard Shortcuts Help
+  \end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Using R Markdown}
+
+\begin{itemize}
+\item
+  Last week was the exception in that I did not provide course materials
+  in R Markdown\ldots{}today that changes
+\item
+  R Markdown is a form of the Markdown language
+  (\url{https://en.wikipedia.org/wiki/Markdown})
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Markdown was the counter to HTML (Hypertext Markup
+    Language)\ldots{}but is a markup language that is very easy to use
+  \item
+    You can find Markdown nearly everywhere these days (see your
+    Notes/OneNote application)
+  \end{itemize}
+\item
+  Markdown makes writing very simple:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    It works nearly everywhere (files are simple text)
+  \item
+    It can incorporate more complicated markup languages, such as LaTex:
+    \(P \left(\theta|Y \right) \propto P \left(Y|\theta \right) P \left( \theta \right)\)
+  \end{itemize}
+\item
+  When you do need a type of document, you can then use any number of
+  programs to make it look nice:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Pandoc (\url{https://pandoc.org}; converts to Word, PDF, LaTex,
+    etc\ldots{})
+  \item
+    The papaja R package (\url{https://crsh.github.io/papaja_man/})
+  \end{itemize}
+\item
+  R Markdown allows you to embed R script within the document, providing
+  syntax snippets and output directly to your final document format
+\item
+  You can find lots of helpful tips on R Markdown on some of these
+  sites:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \url{https://rmarkdown.rstudio.com}
+  \item
+    \url{https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf}
+  \end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]{R Markdown Example}
+
+\begin{itemize}
+\tightlist
+\item
+  Recalling last week's R script for theta, below is how to embed it in
+  R Markdown
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Note: I've changed the number of iterations to something very small
+    to make it run fast
+  \end{itemize}
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{irtItemProb =}\StringTok{ }\ControlFlowTok{function}\NormalTok{(a, b, }\DataTypeTok{c=}\DecValTok{0}\NormalTok{, theta)\{}
+\NormalTok{  prob =}\StringTok{ }\NormalTok{c }\OperatorTok{+}\StringTok{ }\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{c) }\OperatorTok{*}\StringTok{ }\KeywordTok{exp}\NormalTok{(a}\OperatorTok{*}\NormalTok{(theta}\OperatorTok{-}\NormalTok{b))}\OperatorTok{/}\NormalTok{(}\DecValTok{1}\OperatorTok{+}\KeywordTok{exp}\NormalTok{(a}\OperatorTok{*}\NormalTok{(theta}\OperatorTok{-}\NormalTok{b)))}
+  \KeywordTok{return}\NormalTok{(prob)}
+\NormalTok{\}}
+
+\NormalTok{trueTheta =}\StringTok{ }\DecValTok{0}
+\NormalTok{nItems =}\StringTok{ }\DecValTok{5}
+\NormalTok{nItems =}\StringTok{ }\DecValTok{5}
+\NormalTok{bRange =}\StringTok{ }\KeywordTok{c}\NormalTok{(}\OperatorTok{-}\DecValTok{2}\NormalTok{,}\DecValTok{2}\NormalTok{)}
+\NormalTok{aRange =}\StringTok{ }\KeywordTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{)}
+\NormalTok{bSE =}\StringTok{ }\DecValTok{1}
+\NormalTok{aSE =}\StringTok{ }\DecValTok{1}
+\NormalTok{nSamples =}\StringTok{ }\DecValTok{1000}
+
+\CommentTok{# draw mean values of a, b}
+\NormalTok{a =}\StringTok{ }\KeywordTok{runif}\NormalTok{(}\DataTypeTok{n =}\NormalTok{ nItems, }\DataTypeTok{min =}\NormalTok{ aRange[}\DecValTok{1}\NormalTok{], }\DataTypeTok{max =}\NormalTok{ aRange[}\DecValTok{2}\NormalTok{])}
+\NormalTok{b =}\StringTok{ }\KeywordTok{runif}\NormalTok{(}\DataTypeTok{n =}\NormalTok{ nItems, }\DataTypeTok{min =}\NormalTok{ bRange[}\DecValTok{1}\NormalTok{], }\DataTypeTok{max =}\NormalTok{ bRange[}\DecValTok{2}\NormalTok{])}
+
+\CommentTok{# draw items}
+\NormalTok{itemResponses =}\StringTok{ }\KeywordTok{rbinom}\NormalTok{(}\DataTypeTok{n =}\NormalTok{ nItems, }\DataTypeTok{size =} \DecValTok{1}\NormalTok{, }\DataTypeTok{prob =} \KeywordTok{irtItemProb}\NormalTok{(}\DataTypeTok{a =}\NormalTok{ a, }\DataTypeTok{b =}\NormalTok{ b, }\DataTypeTok{theta =} \DecValTok{1}\NormalTok{))}
+\NormalTok{thetaChain =}\StringTok{ }\KeywordTok{list}\NormalTok{(}\KeywordTok{rep}\NormalTok{(}\OtherTok{NA}\NormalTok{, nSamples), }\KeywordTok{rep}\NormalTok{(}\OtherTok{NA}\NormalTok{, nSamples))}
+
+\CommentTok{# initialize theta values}
+\NormalTok{curTheta =}\StringTok{ }\NormalTok{trueTheta}
+\NormalTok{curThetaRand =}\StringTok{ }\NormalTok{trueTheta}
+\ControlFlowTok{for}\NormalTok{ (iteration }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\NormalTok{nSamples)\{}
+  
+  \CommentTok{# draw item parameters (if random)}
+\NormalTok{  iterA =}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n =}\NormalTok{ nItems, }\DataTypeTok{mean =}\NormalTok{ a, }\DataTypeTok{sd =}\NormalTok{ aSE)}
+\NormalTok{  iterB =}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n =}\NormalTok{ nItems, }\DataTypeTok{mean =}\NormalTok{ b, }\DataTypeTok{sd =}\NormalTok{ bSE)}
+  
+  \CommentTok{# calculate current likelihood of the data | theta}
+\NormalTok{  curLogLike =}\StringTok{ }\KeywordTok{sum}\NormalTok{(}\KeywordTok{dbinom}\NormalTok{(}\DataTypeTok{x =}\NormalTok{ itemResponses, }\DataTypeTok{size =} \DecValTok{1}\NormalTok{, }\DataTypeTok{prob =} \KeywordTok{irtItemProb}\NormalTok{(}\DataTypeTok{a =}\NormalTok{ a, }\DataTypeTok{b =}\NormalTok{ b, }\DataTypeTok{theta =}\NormalTok{ curTheta), }\DataTypeTok{log =} \OtherTok{TRUE}\NormalTok{))}
+\NormalTok{  curLogLikeRand =}\StringTok{ }\KeywordTok{sum}\NormalTok{(}\KeywordTok{dbinom}\NormalTok{(}\DataTypeTok{x =}\NormalTok{ itemResponses, }\DataTypeTok{size =} \DecValTok{1}\NormalTok{, }\DataTypeTok{prob =} \KeywordTok{irtItemProb}\NormalTok{(}\DataTypeTok{a =}\NormalTok{ iterA, }\DataTypeTok{b =}\NormalTok{ iterB, }\DataTypeTok{theta =}\NormalTok{ curThetaRand), }\DataTypeTok{log =} \OtherTok{TRUE}\NormalTok{))}
+  
+  \CommentTok{# draw new theta value}
+\NormalTok{  propTheta =}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n =} \DecValTok{1}\NormalTok{, }\DataTypeTok{mean =}\NormalTok{ curTheta, }\DataTypeTok{sd =} \DecValTok{1}\NormalTok{)}
+\NormalTok{  propThetaRand =}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n =} \DecValTok{1}\NormalTok{, }\DataTypeTok{mean =}\NormalTok{ curThetaRand, }\DataTypeTok{sd =} \DecValTok{1}\NormalTok{)}
+  
+  \CommentTok{# calculate proposed likelihood of the data | theta}
+\NormalTok{  propLogLike =}\StringTok{ }\KeywordTok{sum}\NormalTok{(}\KeywordTok{dbinom}\NormalTok{(}\DataTypeTok{x =}\NormalTok{ itemResponses, }\DataTypeTok{size =} \DecValTok{1}\NormalTok{, }\DataTypeTok{prob =} \KeywordTok{irtItemProb}\NormalTok{(}\DataTypeTok{a =}\NormalTok{ a, }\DataTypeTok{b =}\NormalTok{ b, }\DataTypeTok{theta =}\NormalTok{ propTheta), }\DataTypeTok{log =} \OtherTok{TRUE}\NormalTok{))}
+\NormalTok{  propLogLikeRand =}\StringTok{ }\KeywordTok{sum}\NormalTok{(}\KeywordTok{dbinom}\NormalTok{(}\DataTypeTok{x =}\NormalTok{ itemResponses, }\DataTypeTok{size =} \DecValTok{1}\NormalTok{, }\DataTypeTok{prob =} \KeywordTok{irtItemProb}\NormalTok{(}\DataTypeTok{a =}\NormalTok{ iterA, }\DataTypeTok{b =}\NormalTok{ iterB, }\DataTypeTok{theta =}\NormalTok{ propThetaRand), }\DataTypeTok{log =} \OtherTok{TRUE}\NormalTok{))}
+  
+  \CommentTok{# do MH:}
+  \ControlFlowTok{if}\NormalTok{ (}\KeywordTok{log}\NormalTok{(}\KeywordTok{runif}\NormalTok{(}\DataTypeTok{n =} \DecValTok{1}\NormalTok{)) }\OperatorTok{<}\StringTok{ }\NormalTok{(propLogLike}\OperatorTok{-}\NormalTok{curLogLike))\{}
+    \CommentTok{# accept}
+\NormalTok{    curTheta =}\StringTok{ }\NormalTok{propTheta}
+\NormalTok{  \} }
+
+  \CommentTok{# do MH:}
+  \ControlFlowTok{if}\NormalTok{ (}\KeywordTok{log}\NormalTok{(}\KeywordTok{runif}\NormalTok{(}\DataTypeTok{n =} \DecValTok{1}\NormalTok{)) }\OperatorTok{<}\StringTok{ }\NormalTok{(propLogLikeRand}\OperatorTok{-}\NormalTok{curLogLikeRand))\{}
+    \CommentTok{# accept}
+\NormalTok{    curThetaRand =}\StringTok{ }\NormalTok{propThetaRand}
+\NormalTok{  \}}
+  
+\NormalTok{  thetaChain[[}\DecValTok{1}\NormalTok{]][iteration] =}\StringTok{ }\NormalTok{curTheta}
+\NormalTok{  thetaChain[[}\DecValTok{2}\NormalTok{]][iteration] =}\StringTok{ }\NormalTok{curThetaRand}
+\NormalTok{\}}
+
+\KeywordTok{par}\NormalTok{(}\DataTypeTok{mfrow =} \KeywordTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{))}
+
+\KeywordTok{plot}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{ylab =} \KeywordTok{expression}\NormalTok{(theta), }\DataTypeTok{xlab =} \StringTok{"Iteration Number"}\NormalTok{)}
+\KeywordTok{lines}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{col =} \DecValTok{2}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{1}\NormalTok{, }\DataTypeTok{main=}\StringTok{""}\NormalTok{)}
+\KeywordTok{lines}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{2}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{bpm19psqf7375_Lecture02_files/figure-beamer/unnamed-chunk-1-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{par}\NormalTok{(}\DataTypeTok{mfrow =} \KeywordTok{c}\NormalTok{(}\DecValTok{3}\NormalTok{,}\DecValTok{2}\NormalTok{))}
+\KeywordTok{plot}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{ylab =} \KeywordTok{expression}\NormalTok{(theta), }\DataTypeTok{xlab =} \StringTok{"Iteration Number"}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{ylab =} \KeywordTok{expression}\NormalTok{(theta), }\DataTypeTok{xlab =} \StringTok{"Iteration Number"}\NormalTok{, }\DataTypeTok{col =}\DecValTok{2}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{1}\NormalTok{, }\DataTypeTok{main=}\StringTok{""}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{2}\NormalTok{, }\DataTypeTok{main=}\StringTok{""}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{ylab =} \KeywordTok{expression}\NormalTok{(theta), }\DataTypeTok{xlab =} \StringTok{"Iteration Number"}\NormalTok{)}
+\KeywordTok{lines}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]], }\DataTypeTok{type=}\StringTok{"l"}\NormalTok{, }\DataTypeTok{col =} \DecValTok{2}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{1}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{1}\NormalTok{, }\DataTypeTok{main=}\StringTok{""}\NormalTok{)}
+\KeywordTok{lines}\NormalTok{(}\KeywordTok{density}\NormalTok{(thetaChain[[}\DecValTok{2}\NormalTok{]]), }\DataTypeTok{col =} \DecValTok{2}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{bpm19psqf7375_Lecture02_files/figure-beamer/unnamed-chunk-1-2.pdf}
+
+\end{frame}
+
+\begin{frame}{More R Markdown}
+
+\begin{itemize}
+\item
+  To compile the whole document (called ``Knitting'' as it uses a
+  package named knitr), press the Knit button or use the keystroke
+  command-shift-K
+\item
+  To run a chunk of R code, find and press the button on the top right
+  of the chunk
+\item
+  Note: If chunks later in the document depend on chunks at the
+  beginning, you will have to run the beginning ones first (chunks use
+  the current Global R Environment for variables and functions)
+\end{itemize}
+
+\end{frame}
+
+\end{document}
