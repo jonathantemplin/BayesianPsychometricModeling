@@ -326,6 +326,9 @@ BayesianFullModel = function(){
     # creating conditional mean to put into model statement 
     weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
     
+    # error values (for R^2)
+    error[i] = weight[i]-weight.hat[i]
+    
     # likelihood from model:
     weight[i] ~ dnorm(weight.hat[i], tau.e)
     
@@ -337,6 +340,12 @@ BayesianFullModel = function(){
   
   # calculate mean difference between groups 2 and 3:
   dif.group2.group3 <- beta.group3 - beta.group2
+  
+  # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+  variance.pred = sd(weight.hat[])*sd(weight.hat[])
+  variance.error = sd(error[])*sd(error[])
+  Rsquare = variance.pred/(variance.pred + variance.error)
+  
 }
 
 ```
@@ -354,7 +363,8 @@ BayesianFullModel.Parameters = c("beta.0",
                                  "dif.group2.group3",
                                  "tau.e", 
                                  "sigma2.e", 
-                                 "sigma.e")
+                                 "sigma.e",
+                                 "Rsquare")
 
 # pick a number: Here is the date I created this syntax
 BayesianFullModel.Seed = 06022019
@@ -363,8 +373,9 @@ BayesianFullModel.JAGS = jags(data = BayesianFullModel.JAGS.Data,
                               parameters.to.save = BayesianFullModel.Parameters, 
                               model.file = BayesianFullModel,
                               n.chains = 4,
-                              n.iter = 5000,
-                              n.burnin = 2000, 
+                              n.iter = 10000,
+                              n.burnin = 5000, 
+                              n.thin = 1,
                               jags.seed = BayesianFullModel.Seed)
 
 
