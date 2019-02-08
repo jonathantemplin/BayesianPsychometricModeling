@@ -1,0 +1,482 @@
+---
+title: "Introduction to MCMC"
+author: "Bayesian Psychometric Models, Lecture 7"
+output: html_document
+---
+
+```{r InstallLoadPackages, echo=FALSE, include=FALSE}
+needed_packages = c("invgamma", "ggplot2", "R2jags", "HDInterval")
+for(i in 1:length(needed_packages)){
+  haspackage = require(needed_packages[i], character.only = TRUE)
+  if(haspackage == FALSE){
+    install.packages(needed_packages[i])
+  }
+  library(needed_packages[i], character.only = TRUE)
+}
+```
+
+The current lecture is built loosely off of Levy and Mislevy (2017) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
+
+## Introduction to Markov Chain Monte Carlo Estimation
+
+Bayesian analysis is all about estimating the posterior distribution
+
+- Up until now, we have worked with posterior distributions that fairly well-known
+    - Beta-Binomial had a Beta distribution
+    - In general, likelihood distributions from the exponential family have conjugate priors
+        - Conjugate prior: the family of the prior is equivalent to the family of the posterior
+- Most of the time, however, posterior distributions are not easily obtainable
+    - No longer able to use properties of the distribution to estimate parameters
+- It is possible to use an optimization algorithm (e.g., Newton-Raphson or Expectation-Maximization) to find maximum value of posterior distribution
+    - But, such algorithms may take a very long time for high-dimensional problems
+- Instead: "sketch" the posterior by sampling from it -- then use that sketch to make inferences
+    - Sampling is done via MCMC
+    
+## Markov Chain Monte Carlo
+
+- MCMC algorithms iteratively sample from the posterior distribution
+    - For fairly simplistic models, each iteration has independent samples
+    - Most models have some layers of dependency included
+        - Can slow down sampling from the posterior
+- There are numerous variations of MCMC algorithms
+    - Most of these specific algorithms use one of two types of sampling:
+        1. Direct sampling from the posterior distribution (i.e. Gibbs sampling)
+            - Often used when conjugate priors are specified
+        2. Indirect (rejection-based) sampling from the posterior distribution (e.g., Metropolis-Hastings)
+- Efficiency is the main reason for so many algorithms
+    - Efficiency in this context: How quickly the algorithm converges and provides adequate coverage ("sketching") of the posterior distribution
+    - No one algorithm is uniformly most efficient for all models (here model = likelihood $\times$ prior)
+- The good news is that many software packages (JAGS and MPlus, especially) don't make you choose which specific algorithm to use
+- The bad news is that sometimes your model may take a large amount of time to reach convergence (think days or weeks)
+- You can also code your own custom algorithm to make things run smoother
+
+## Commonalities Across MCMC Algorithms
+
+- Despite having fairly broad differences regarding how algorithms sample from the posterior distribution, there are quite a few things that are similar across algorithms:
+    1. A period of the Markov chain where sampling is not directly from the posterior
+        - The burnin period
+    2. Methods used to assess convergence of the chain to the posterior distribution
+        - Often involving the need to use multiple chains with independent and differing starting values
+    3. Summaries of the posterior distribution
+- Further, rejection-based sampling algorithms often need a tuning period to make the sampling more efficient
+    - The tuning period comes before the algorithm begins its burnin period
+
+To demonstrate each type of algorithm, we will use a model for a normal distribution (Chapter 4 of Levy & Mislevy, 2017) 
+    - We will investigate each, briefly
+    - We will then switch over to JAGS to show the syntax and let JAGS work
+    
+We will conclude by talking about assessing convergence and how to report parameter estimates.
+
+### Example Data: Post-Diet Weights
+
+Borrowing an example from (https://stats.idre.ucla.edu/spss/library/spss-libraryhow-do-i-handle-interactions-of-continuous-andcategorical-variables/)[https://stats.idre.ucla.edu/spss/library/spss-libraryhow-do-i-handle-interactions-of-continuous-andcategorical-variables/], the file DietData.csv contains data from 30 respondents who participated in a study regarding the effectiveness of three types of diets. Variables in the data set are:
+
+1. Respondent: Respondent number 1-30
+2. DietGroup: A 1, 2, or 3 representing the group to which a respondent was assigned
+3. HeightIN: The respondent's height in inches
+4. WeightLB: The respondent's weight, in pounds, recorded following the study
+
+Here, weight is the dependent variable. The motivating research question is:
+
+> Are there differences in final weights between the three diet groups, and, if so, what are the nature of the differences?
+
+The following syntax reads the data into R and provides some pictures of the data:
+
+```{r DataIn, echo=TRUE}
+
+DietData = read.csv(file = "DietData.csv")
+
+ggplot(data = DietData, aes(x = WeightLB)) + 
+  geom_histogram(aes(y = ..density..), position = "identity", binwidth = 10) + 
+  geom_density(alpha=.2) 
+
+
+ggplot(data = DietData, aes(x = WeightLB, color = factor(DietGroup), fill = factor(DietGroup))) + 
+  geom_histogram(aes(y = ..density..), position = "identity", binwidth = 10) + 
+  geom_density(alpha=.2) 
+
+
+ggplot(data = DietData, aes(x = HeightIN, y = WeightLB, shape = factor(DietGroup), color = factor(DietGroup))) +
+  geom_smooth(method = "lm", se = FALSE) + geom_point()
+
+
+```
+
+Now, your turn to answer questions:
+
+1. What type of analysis seems most appropriate for these data?
+2. Is the dependent variable (`WeightLB`) is appropriate as-is for such analysis or does it need transformed?
+
+```{r ClassicalAnalysis}
+
+# full analysis model suggested by data:
+FullModel = lm(formula = WeightLB ~ HeightIN + factor(DietGroup) + HeightIN:factor(DietGroup), data = DietData)
+
+# examining assumptions and leverage of fit
+plot(FullModel)
+
+# looking at ANOVA table
+anova(FullModel)
+
+# looking at parameter summary
+summary(FullModel)
+
+```
+
+
+## Bayesian Analysis of Our Example Data
+
+Let's examine how our example data should be analyzed using Bayesian methods. To do so we need to specify:
+
+1. Likelihood function (from the model)
+2. Prior distributions for all model parameters
+
+### Linear Models Likelihood Function (Scalar Version)
+
+The classic linear model is one where, for a respondent $r$ $(r = 1, \dots, N)$, a dependent variable (or outcome), $y_r$, is predicted via a set of independent variables (or predictors), $x_{rv}$ where $v = 1, \dots, V$ and, sometimes, their interactive product, by means of a set of regression coefficients $\beta_v$:
+
+$$Y_r = \beta_0 + \beta_1 x_{r1} + \beta_2 x_{r2} + \dots + \beta_V x_{rV} + e_r = \mathbf{x}_r \boldsymbol{\beta} + e_r$$
+
+Here, $e_r$ is the residual or error term for respondent $r$, with $e_r \sim N(0, \sigma^2_e)$.
+
+So, loosely, we can say that an observation $Y_r \sim N( \mathbf{x}_r \boldsymbol{\beta}, \sigma^2_e)$. This now gives us the set of parameters for which we need to specify prior distributions: $\boldsymbol{\beta}$ and $\sigma^2_e$.
+
+### Linear Models: Conjugate Prior Distributions
+
+Conjugate priors are prior distributions that have the same form as the posterior distribution. As we will see in another lecture, conjugate priors are helpful because they make our Bayesian sampling algorithms run efficiently. We will stay with conjugate prior distributions for this lecture.
+
+Choosing conjugate prior distributions in Bayesian linear models has one complicating factor: The likelihood for $\boldsymbol{\beta}$ is conditional on $\sigma^2_e$. So, let's start there. In particular:
+
+$$f\left(\boldsymbol{\beta}, \sigma^2_e \right) = f\left( \boldsymbol{\beta} \mid \sigma^2_e \right)f \left( \sigma^2_e \right)$$
+#### Prior for $\sigma^2_e$
+
+To make sense of this, we can start with $\sigma^2_e$, which has a conjugate prior distribution that is inverse-gamma. The inverse-gamma distribution (see (https://en.wikipedia.org/wiki/Inverse-gamma_distribution)[https://en.wikipedia.org/wiki/Inverse-gamma_distribution]) is one that has support of $(0,\infty]$, which matches the range of $\sigma^2_e$. The distribution has two parameters, $\alpha$ (sometimes called the shape; $\alpha>0$) and $\beta$ (sometimes called the scale, although in the `invgamma` R package, it is the rate, $\beta>0$). 
+
+To get a sense of how these parameters function, the mode is a good measure of central tendency, which is $\frac{\beta}{\alpha+1}$. In practice, we can rephrase these in terms of our expected degrees of freedom total $\nu_0$ and our expected residual variance $\sigma^2_{e0}$:
+
+$$\alpha_0 = \frac{\nu_0}{2}$$
+
+$$\beta_0 = \frac{\nu_0\sigma^2_0}{2}$$
+In the plot below, I use the values from our classical linear model analysis to provide an example of what the prior looks like:
+```{r SigmaInvGammaPrior}
+nu.0 = summary(FullModel)$df[2]
+sigma2.0 = summary(FullModel)$sigma^2
+
+alpha.0 = nu.0/2
+beta.0 = nu.0*sigma2.0/2
+
+PriorMode = beta.0/(alpha.0+1)
+
+maxX = qinvgamma(.995, shape = alpha.0, rate= beta.0)
+minX = 0.001
+step = (maxX - minX)/10000
+
+sigma2 = seq(minX, maxX, step)
+height = dinvgamma(x = sigma2, shape = alpha.0, rate = beta.0)
+
+plot(x = sigma2, y = height, type = "l", ylab = expression(paste("f(", sigma[e]^2, ")")), xlab = expression(sigma[e]^2), 
+     main = paste0("Prior Mode:", round(PriorMode, 2), "; MLE:", round(sigma2.0, 2)))
+
+lines(x = c(PriorMode, PriorMode), y = c(0, dinvgamma(x = PriorMode, shape = alpha.0, rate = beta.0)))
+
+```
+
+One complicating factor is that for normal distributions (where we will need to put the parameter $\sigma^2_e$ with this prior) JAGS uses a "precision" parameter of $\frac{1}{\sigma^2_e}$ rather than a "dispersion" of $\sigma^2_e$. Therefore, we must specify our prior for $\tau_e = \frac{1}{\sigma^2_e}$, which follows a gamma distribution.
+
+The good news is that the parameters of the gamma distribution are the same, however, you have to check what they are called in R. Here is how the previous plot looks with a gamma distribution:
+
+```{r InvSigmaGammaPrior}
+nu.0 = summary(FullModel)$df[2]
+sigma2.0 = summary(FullModel)$sigma^2
+tau.e.0 = 1/sigma2.0
+
+alpha.0 = nu.0/2
+beta.0 = nu.0*sigma2.0/2
+
+PriorMode = (alpha.0-1)*(1/beta.0)
+
+maxX = qgamma(.995, shape = alpha.0, rate= beta.0)
+minX = 0.0001
+step = .00001
+
+tau.e = seq(minX, maxX, step)
+height = dgamma(x = tau.e, shape = alpha.0, rate = beta.0)
+
+plot(x = tau.e, y = height, type = "l", ylab = expression(paste("f(", tau[e], ")")), xlab = expression(tau[e]), 
+     main = paste0("Prior Mode:", round(PriorMode, 2), "; MLE:", round(1/sigma2.0, 2)))
+lines(x = c(PriorMode, PriorMode), y = c(0, dgamma(x = PriorMode, shape = alpha.0, rate = beta.0)))
+
+```
+
+#### "Uninformative" Choices of Conjugate Prior for $\sigma^2_e$ (really, $\tau_e$)
+
+One way to make an "uninformative" but conjugate prior for $\sigma^2_e$ is to recall the terms we used to specify the prior parameters: $\nu_0$ as the expected DF total and $\sigma^2_{e0}$ as the expected residual variance.
+
+For the residual variance:
+1. The maximum residual variance is the marginal variance of $y$: occurs when $\boldsymbol{\beta} = \mathbf{0}$
+2. Higher values of variance parameters result in higher posterior standard deviations for $\boldsymbol{\beta}$, meaning they are more conservative
+
+So, we'll start with an estimate of $\sigma^2_{e0} = \sigma^2_y$. For our sample, $\sigma^2_y =$  `r round(var(DietData$WeightLB), 2)`. 
+
+Next, recall that $\nu_0$ is the expected degrees of freedom total for the analysis. As degrees of freedom decrease, the asymptotic sampling error of $\sigma^2_e$ gets large, so you can pick a value of $\nu_0$ that is small (but above 0). See the following plot (for $\sigma^2_e$, but the parameter choices apply to $\tau$):
+
+```{r SigmaInvGammaPriorUnInformed}
+sigma2.0.U = var(DietData$WeightLB)
+nu.0.U = 1
+
+alpha.0.U = nu.0.U/2
+beta.0.U = (nu.0.U*sigma2.0.U)/2
+
+nu.0 = summary(FullModel)$df[2]
+sigma2.0 = summary(FullModel)$sigma^2
+
+alpha.0 = nu.0/2
+beta.0 = (nu.0*sigma2.0)/2
+
+PriorMode = beta.0/(alpha.0+1)
+
+maxX = 3*sigma2.0.U
+minX = 0.001
+step = (maxX - minX)/10000
+
+sigma2 = seq(minX, maxX, step)
+
+height = dinvgamma(x = sigma2, shape = alpha.0, rate = beta.0)
+heightU = dinvgamma(x = sigma2, shape = alpha.0.U, rate = beta.0.U)
+
+matplot(x = cbind(sigma2, sigma2), y = cbind(height, heightU), type = "l", ylab = expression(paste("f(", sigma[e]^2, ")")), xlab = expression(sigma[e]^2),
+        main = "Red is uninformative prior; black is prior based on suggestion in book")
+
+matplot(x = cbind(sigma2, sigma2), y = cbind(height, heightU), type = "l", ylab = expression(paste("f(", sigma[e]^2, ")")), xlab = expression(sigma[e]^2),
+        main = "Same Funciton: Close Up Near Original Prior", xlim = c(0,qinvgamma(.995, shape = alpha.0, rate= beta.0) ))
+
+
+```
+
+#### Prior for $\boldsymbol{\beta}$
+
+Conditional on a value of of $\sigma^2_e$, the conjugate prior for $\boldsymbol{\beta}$ follows a multivariate normal distribution: $\boldsymbol{\beta} \sim MVN\left(\bar{\boldsymbol{\beta}}, \boldsymbol{\Sigma}_\boldsymbol{\beta}\right)$. Often, this is expressed as a set of independent univariate priors where the mean for each $\beta$ is given along with some type of variance. That said, the use of normal priors in JAGS uses precision instead of variance (so 1/variance). 
+
+These priors can be made to be uninformative by selecting very low values for precision (meaning very high levels of variance). Remember, 99% of the mass of a univariate normal distribution falls within +/- 3SD. 
+
+That said, the scale of the regression coefficients will not be constant, so if picking one value for a hyperparameter for the prior of each, pick a very large variance
+
+## Bayesian Linear Models Analysis with JAGS
+
+The first step to building our Bayesian linear model analysis in JAGS is to put all of our data and prior values into an R list object. Here, we will 
+
+```{r DataList}
+# specify values of hyperparameters for prior distributions
+
+# for sigma2_e (tau)
+sigma2.0 = var(DietData$WeightLB)
+nu.0 = 1
+
+alpha.0 = nu.0/2
+beta.0 = (nu.0*sigma2.0)/2
+
+# for betas:
+betaMean.0 = 0
+betaVariance.0 = 100000000
+betaTau.0 = 1/betaVariance.0
+
+# take data frame and create model matrix -- which gives us the columns of X:
+BayesianFullModel.Matrix = model.matrix(object = FullModel)
+
+# append with weight and then select only columns needed for model:
+BayesianFullModel.Matrix = data.frame(cbind(DietData$WeightLB, BayesianFullModel.Matrix))
+names(BayesianFullModel.Matrix) = c("weight", "intercept", "height", "group2", "group3", "hg2", "hg3")
+BayesianFullModel.Matrix = BayesianFullModel.Matrix[c("weight", "height", "group2", "group3")]
+
+
+# add data and N to list object that we will pass to JAGS
+BayesianFullModel.JAGS.Data = list(N = nrow(DietData),
+                                   weight = BayesianFullModel.Matrix$weight,
+                                   height = BayesianFullModel.Matrix$height,
+                                   group2 = BayesianFullModel.Matrix$group2,
+                                   group3 = BayesianFullModel.Matrix$group3)
+                                   
+```
+
+Next, we can create our JAGS model syntax. We will use the `R2jags` package, so we enclose the syntax in a function. Here, we put the names of the variables and hyperparameters we created in our previous step directly into the JAGS model syntax. 
+
+There are several things to note here:
+
+- Hyperparameter values are explicit numbers in syntax, not variables entered into JAGS
+- The example syntax on p. 129 has a calculation of $R^2$ -- however, it uses the MLE for $\sigma^2_y$ and a version of the MLE for $\sigma^2_e$, so it is not included
+
+```{r BayesianModelSyntax}
+
+BayesianFullModel = function(){
+  
+  # prior distributions: 
+  #   Note that terms on the left are model parameter names we create here
+  beta.0             ~ dnorm(0, .00000001) # prior for the intercept
+  beta.height        ~ dnorm(0, .00000001) #prior for the conditional slope of height
+  beta.group2        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 2 and group 1
+  beta.group3        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 3 and group 1
+  beta.height.group2 ~ dnorm(0, .00000001) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+  beta.height.group3 ~ dnorm(0, .00000001) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+  tau.e              ~ dgamma(.5, 1226.069)       #prior for 1/sigma^2_e, residual precision
+  
+  
+  # conditional distribution of the data (uses priors above)
+  for (i in 1:N){
+    
+    # creating conditional mean to put into model statement 
+    weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+    
+    # error values (for R^2)
+    error[i] = weight[i]-weight.hat[i]
+    
+    # likelihood from model:
+    weight[i] ~ dnorm(weight.hat[i], tau.e)
+    
+  }
+  
+  # created values to track throughout the Markov chain
+  sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+  sigma.e   <- sqrt(sigma2.e)           #create residual SD
+  
+  # calculate mean difference between groups 2 and 3:
+  dif.group2.group3 <- beta.group3 - beta.group2
+  
+  # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+  variance.pred = sd(weight.hat[])*sd(weight.hat[])
+  variance.error = sd(error[])*sd(error[])
+  Rsquare = variance.pred/(variance.pred + variance.error)
+  
+}
+
+```
+
+Next, to run JAGS, we need a few more values to save: (1) the names of the parameters we wish to have JAGS track across the chains and (2) a random number seed for reproducability. Once we have that, we can run JAGS. Below, I will use the `jags()` function, to which we should also provide the number of chains, number of iterations total, and number of burnin iterations.
+
+```{r RunJAGS}
+# the parameter names come from the model syntax in the previous step
+BayesianFullModel.Parameters = c("beta.0", 
+                                 "beta.height", 
+                                 "beta.group2", 
+                                 "beta.group3", 
+                                 "beta.height.group2", 
+                                 "beta.height.group3", 
+                                 "dif.group2.group3",
+                                 "tau.e", 
+                                 "sigma2.e", 
+                                 "sigma.e",
+                                 "Rsquare")
+
+# pick a number: Here is the date I created this syntax
+BayesianFullModel.Seed = 06022019
+
+BayesianFullModel.JAGS = jags(data = BayesianFullModel.JAGS.Data,
+                              parameters.to.save = BayesianFullModel.Parameters, 
+                              model.file = BayesianFullModel,
+                              n.chains = 4,
+                              n.iter = 10000,
+                              n.burnin = 5000, 
+                              n.thin = 1,
+                              jags.seed = BayesianFullModel.Seed)
+
+
+```
+
+### Checking Chain Convergence
+
+After the model runs, the next step is to assess convergence of the chains to the posterior distribution. This can be accomplished in several ways:
+
+```{r ModelConvergence}
+# assessing convergence:
+
+# visual assessment
+plot(as.mcmc(BayesianFullModel.JAGS)) 
+
+```
+
+The most common method used for assessing convergence is the Gelman-Rubin $\hat{R}$, which compares the within- and between-chain variance of multiple chains. The `coda` package has a number of convergence diagnostics.
+
+Our chains look converged, now we can look at the results:
+
+```{r BayesModelResults}
+# inspecting Bayesian Results
+print(BayesianFullModel.JAGS)
+```
+
+Now, let's compare Bayesian with least squares results
+
+```{r LSresults}
+summary(FullModel)
+```
+
+Reasons for differences: $\sigma^2_e$. Look at what happens if we fix the residual variance to that it was in the least squares analysis:
+
+```{r BayesianModelSyntaxFixedVar}
+
+BayesianFullModelFixedVar = function(){
+  
+  # prior distributions: 
+  #   Note that terms on the left are model parameter names we create here
+  beta.0             ~ dnorm(0, .00000001) # prior for the intercept
+  beta.height        ~ dnorm(0, .00000001) #prior for the conditional slope of height
+  beta.group2        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 2 and group 1
+  beta.group3        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 3 and group 1
+  beta.height.group2 ~ dnorm(0, .00000001) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+  beta.height.group3 ~ dnorm(0, .00000001) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+  
+  
+  # conditional distribution of the data (uses priors above)
+  for (i in 1:N){
+    
+    # creating conditional mean to put into model statement 
+    weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+    
+    # likelihood from model:
+    weight[i] ~ dnorm(weight.hat[i], 0.01582614)
+    
+  }
+  
+  # calculate mean difference between groups 2 and 3:
+  dif.group2.group3 <- beta.group3 - beta.group2
+}
+
+BayesianFullModelFixedVar.Parameters = c("beta.0", 
+                                         "beta.height", 
+                                         "beta.group2", 
+                                         "beta.group3", 
+                                         "beta.height.group2", 
+                                         "beta.height.group3", 
+                                         "dif.group2.group3")
+
+# pick a number: Here is the date I created this syntax
+BayesianFullModelFixedVar.Seed = 060220191
+
+BayesianFullModelFixedVar.JAGS = jags(data = BayesianFullModel.JAGS.Data,
+                                      parameters.to.save = BayesianFullModelFixedVar.Parameters, 
+                                      model.file = BayesianFullModelFixedVar,
+                                      n.chains = 4,
+                                      n.iter = 50000,
+                                      n.burnin = 20000, 
+                                      n.thin = 1,
+                                      jags.seed = BayesianFullModelFixedVar.Seed)
+
+BayesianFullModelFixedVar.JAGS
+
+```
+
+# Results
+
+Often, each parameter is summarized by its HPD (Highest Posterior Density), a value like a confidence interval. To make our life easy, we can use the `HDInterval` package which makes working with the R2jags output easy:
+
+```{r hpd}
+hdi(BayesianFullModel.JAGS)
+```
+
+Here, if one was going to talk about if a parameter was "zero" or was "significant" (terms Bayesians don't use), we see if zero is in the HPD. Here, we see the conditional slope for height has zero along with the difference between groups 2 and 3. Can you interpret these values?
+
+
+
+
+
+
+
+

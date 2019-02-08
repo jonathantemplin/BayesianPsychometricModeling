@@ -1,0 +1,124 @@
+---
+title: "MCMC Algorithms"
+author: "Bayesian Psychometric Models, Lecture 8"
+output: html_document
+---
+
+## Interruption: Theory Time
+
+Rather than dive right into the Bayesian way of looking at data, let's first look into the analysis model a bit more...
+
+## Linear Models
+
+The classic linear model is one where, for a respondent $r$ $(r = 1, \dots, N)$, a dependent variable (or outcome), $y_r$, is predicted via a set of independent variables (or predictors), $x_{rv}$ where $v = 1, \dots, V$ and, sometimes, their interactive product, by means of a set of regression coefficients $\beta_v$:
+
+$$Y_r = \beta_0 + \beta_1 x_{r1} + \beta_2 x_{r2} + \dots + \beta_V x_{rV} + e_r = \mathbf{x}_r \boldsymbol{\beta} + e_r$$
+
+Here, $e_r$ is the residual or error term for respondent $r$, with $e_r \sim N(0, \sigma^2_e)$.
+
+For our example data, the linear model is thus:
+
+$$ Y_r = \beta_0 + \beta_{Height}x_{Height,r} + \beta_{Group2}x_{Group2, r} 
++ \beta_{Group3}x_{Group3, r} + \beta_{Height*Group2}x_{Height,r}x_{Group2, r} 
++ \beta_{Height*Group3}x_{Height,r}x_{Group3, r} + e_r$$
+
+The right-hand side is the vector notation of the regression equation for a single respondent, with $\boldsymbol{\beta} = \left[\beta_0, \beta_1, \dots, \beta_V \right]^T$ a vector of regression coefficients with size $(V+1) \times 1$ and $\mathbf{x}_r = \left[1, x_{r1}, \dots, x_{rV} \right]$ a vector of a constant of 1 (for multiplying the intercept $\beta_0$) and $V$ predictors, for a size of  $1 \times (V+1)$. 
+
+When put together across all respondents, we get a common matrix format of the linear model that we will use to build the Bayesian Linear Model under Gibbs Sampling and Metropolis-Hastings:
+
+$$ \mathbf{Y} = \mathbf{X}\boldsymbol{\beta} + \mathbf{e}$$
+
+Here: 
+
+- $\mathbf{Y}$ is size $N \times 1$
+- $\mathbf{X}$ is size $N \times (V+1)$, with the first column being full of 1s
+- $\boldsymbol{\beta}$ is size $(V+1) \times 1$
+- $\mathbf{e}$ is size $N \times 1$ and $\mathbf{e} \sim MVN \left(\mathbf{0}, \boldsymbol{\Sigma}_e = \sigma^2_e \mathbf{I}_{(N \times N)} \right)$, where:
+
+    - $\mathbf{I}_{(N \times N)}$ is an $(N \times N)$-sized identity matrix
+    
+## Bayesian Estimation of Model for Example Data
+
+Before we dive into how the algorithms work, we will first examine how to estimate a Bayesian version of our model. To do so we need to specify:
+
+1. Likelihood function (from the model)
+2. Prior distributions for all model parameters
+
+### Likelihood Function
+
+Using the general matrix form of the model $\mathbf{Y} = \mathbf{X}\boldsymbol{\beta} + \mathbf{e}$, express the likelihood function:
+
+Here, note the determinant of $\left| \Sigma_e \right| = \left| \sigma^2_e \mathbf{I} \right| = \left| \sigma^2_e \right| \left| \mathbf{I} \right| =\left( \sigma^2_e\right)^N = \sigma^{2N}_e$
+
+$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) = \frac{1}{\sqrt{\left(2 \pi \right)^V \left| \sigma^2_e \mathbf{I} \right|} }
+\exp \left( \frac{1}{2} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \sigma^2_e \mathbf{I} \right)^{-1} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right) = \left( 2\pi \right)^{-\frac{V}{2}} \left(\sigma^2\right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} $$
+
+Often, the normalizing constants are removed, which leaves:
+$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left(\sigma^2\right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} $$
+
+
+We will come back to this distribution later for now, please note that because $\boldsymbol{\Sigma}_e = \sigma^2_e \mathbf{I}_{(N \times N)}$, an equivalent expression is possible using a series of independent univariate normal distributions:
+
+$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) = \prod_{r=1}^N \frac{1}{\sqrt{2\pi\sigma^2_e}} \exp{\left(\frac{-(Y_r - \mathbf{X}_r \boldsymbol{\beta})^2 }{2\sigma^2_e}\right)}$$
+
+Alternatively, $\left(Y_r | \mathbf{X}_r, \boldsymbol{\beta}, \sigma^2_e \right) \sim N\left(\mathbf{X}_r \boldsymbol{\beta}, \sigma^2_e \right)$.
+
+### Prior Distributions
+
+The choice of prior distributions is commonly very difficult. As conjugate priors make algorithms more efficient, we will begin there.
+
+Choosing conjugate prior distributions in Bayesian linear models has one complicating factor: The likelihood for $\boldsymbol{\beta}$ is conditional on $\sigma^2_e$. So, let's start there. In particular:
+
+$$f\left(\boldsymbol{\beta}, \sigma^2_e \right) = f\left( \boldsymbol{\beta} \mid \sigma^2_e \right)f \left( \sigma^2_e \right)$$
+
+Further, we can start to see how a conjugate prior may look by altering the likelihood function slightly by noting that:
+
+$$\left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) =
+\left( \mathbf{Y} - \mathbf{X}\hat{\boldsymbol{\beta}} \right)^T \left( \mathbf{Y} - \mathbf{X}\hat{\boldsymbol{\beta}} \right) + 
+\left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\mathbf{X}^T\mathbf{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)
+$$
+
+Where $\hat{\boldsymbol{\beta}}$ is the result of the solution to the "normal equations" consisting only of \mathbf{Y} and \mathbf{X}:
+
+$$ \hat{\boldsymbol{\beta}} = \left(\mathbf{X}^T\mathbf{X} \right)^{-1} \mathbf{X}^T \mathbf{Y}$$
+
+This leads to a rewritten likelihood function of:
+$$ f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left( \sigma^2_e\right)^{-\frac{\nu}{2}} \exp\left( - \frac{\nu s^2}{2\sigma_e^2}\right)
+      \left( \sigma^2_e\right)^{-\frac{N-\nu}{2}} \exp \left( - \frac{1}{2\sigma^2_e} \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\mathbf{X}^T\mathbf{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)\right)
+$$
+Where $\nu = N-V$.
+
+Then, if you squint really hard, you can see that the conjugate prior for the residual variance is an inverse-gamma distribution:
+
+$$f(\sigma^2_e) \propto  \left( \sigma^2_e\right)^{-\frac{\nu_0}{2}} \exp\left( - \frac{\nu_0s^2_0}{2\sigma_e^2}\right)
+$$
+
+The inverse-gamma distribution is often notated with parameters $\alpha$ and $\beta$. Here, $\alpha = \frac{\nu_0}{2}$ and $\beta = \frac{1}{2} \nu_0 s^2_0$ where $\nu_0$ and $s^2_0$ are the prior values of the denominator degrees of freedom and estimated residual variance.
+
+For  \boldsymbol{\beta}, the conditional prior is a multivariate normal distribution with prior mean $\boldsymbol{\mu}_0$ and prior covariance matrix $\Sigma_0$.
+
+$$f\left( \boldsymbol{\beta} \mid \sigma^2_e \right) \propto  \left( \sigma^2_e\right)^{-\frac{V}{2}} \exp \left( -\frac{1}{2\sigma^2_e} \left(\boldsymbol{\beta} - \boldsymbol{\mu}_0\right)^T \Sigma_0^{-1} \left(\boldsymbol{\beta} - \boldsymbol{\mu}_0\right) \right)  $$
+
+
+### Posterior Distribution with Conjugate Priors
+
+The posterior distribution becomes a mess, but it can be summarized by looking first at $\sigma^2_e$ and the at $\boldsymbol{\beta}$. The entire derivation won't be provided, however, the joint posterior distribution $f\left(\boldsymbol{\beta}, \sigma^2_e \mid \mathbf{Y}, \mathbf{X} \right)$ is a product of inverse-gamma and normal distributions.
+
+#### Posterior for $\sigma^2_e$
+
+The posterior distribution for $\sigma^2_e$ is inverse gamma, with:
+
+$$\alpha_n = \frac{\nu_0+N}{2}$$
+$$\beta_n = \frac{\nu_0 s^2_{0} + \left(\mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T\left(\mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)}{2}$$
+
+#### Posterior for $\boldsymbol{\beta}$
+
+The posterior distribution for $\boldsymbol{\beta}$ conditional on $\sigma^2_e$ is normal, with mean $\bar{\boldsymbol{\beta}}$ and variance $\boldsymbol{\Sigma}_\beta$:
+
+$$\bar{\boldsymbol{\beta}} = \left(\Sigma_0^{-1} + \mathbf{X}^T\mathbf{X} \right)^{-1}\left(\Sigma_0^{-1} \boldsymbol{\beta}_0  +  \mathbf{X}^T\mathbf{Y} \right)$$
+$$ a = 1$$
+
+
+#### Side Note: When You Read "Assuming Known $\sigma^2_e$"
+
+Although "knowing $\sigma^2_e$" sounds implausible (if I *knew* $\sigma^2_e$, I would likely know $\boldsymbol{\beta}$, and probably would have lots of other impressive abilities...), we start here this because in an MCMC algorithm, "known" can also mean "conditional on this specific value of $\sigma^2_e$".
