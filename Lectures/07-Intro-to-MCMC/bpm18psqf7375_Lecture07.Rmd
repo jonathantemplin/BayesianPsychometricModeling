@@ -469,7 +469,6 @@ Often, each parameter is summarized by its HPD (Highest Posterior Density), a va
 
 ```{r hpd}
 hdi(BayesianFullModel.JAGS)
-
 ```
 
 Here, if one was going to talk about if a parameter was "zero" or was "significant" (terms Bayesians don't use), we see if zero is in the HPD. Here, we see the conditional slope for height has zero along with the difference between groups 2 and 3. Can you interpret these values?
