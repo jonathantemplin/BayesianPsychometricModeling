@@ -33,7 +33,7 @@ library(coda)
 ```
 
 
-To demonstrate JAGS in our introduction, we will use the syntax provided on p. 39 of Levy and Mislevy (2017) that estimates the probability parameter $\theta$ for a 7-success in 10-trail set of data, using a binomial distribution. The text file `model01.jags`, which is in the current directory of the repo, has a shortened version of this syntax. Note, you can avoid having to go outside of RStudio by enclosing the model in quotes and saving it as a variable. To pass it to the `jags.model()` function, put the name of the variable in the `textConnection` function.
+To demonstrate JAGS in our introduction, we will use the syntax provided on p. 39 of Levy and Mislevy (2016) that estimates the probability parameter $\theta$ for a 7-success in 10-trail set of data, using a binomial distribution. The text file `model01.jags`, which is in the current directory of the repo, has a shortened version of this syntax. Note, you can avoid having to go outside of RStudio by enclosing the model in quotes and saving it as a variable. To pass it to the `jags.model()` function, put the name of the variable in the `textConnection` function.
 
 To run JAGS several steps must be undertaken: 
 1. The "data" (i.e., everything JAGS depends on and won't sample) must be listed

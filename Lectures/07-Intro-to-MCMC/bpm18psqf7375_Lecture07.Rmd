@@ -15,7 +15,7 @@ for(i in 1:length(needed_packages)){
 }
 ```
 
-The current lecture is built loosely off of Levy and Mislevy (2017) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
+The current lecture is built loosely off of Levy and Mislevy (2016) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
 
 ## Introduction to Markov Chain Monte Carlo Estimation
 
@@ -61,7 +61,7 @@ Bayesian analysis is all about estimating the posterior distribution
 - Further, rejection-based sampling algorithms often need a tuning period to make the sampling more efficient
     - The tuning period comes before the algorithm begins its burnin period
 
-To demonstrate each type of algorithm, we will use a model for a normal distribution (Chapter 4 of Levy & Mislevy, 2017) 
+To demonstrate each type of algorithm, we will use a model for a normal distribution (Chapter 4 of Levy & Mislevy, 2016) 
     - We will investigate each, briefly
     - We will then switch over to JAGS to show the syntax and let JAGS work
     
