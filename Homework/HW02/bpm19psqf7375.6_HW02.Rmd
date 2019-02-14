@@ -1,0 +1,68 @@
+---
+title: 'Homework #2'
+author: "Bayesian Psychometric Models"
+date: "Due Date: March 1, 2019 (15 points total)"
+output: html_document
+---
+
+This homework consists of four problems, with point totals varying by problem. Please submit your homework as an R Markdown file named FirstName_LastName.Rmd with answers to the questions clearly labeled. 
+
+## 1. Bayesian Linear Model Article Review (3 points)
+
+A. Find a published article in an empirical journal (that is, not a statistics/data science journal; ask if you have questions) that reports the results of a Bayesian analysis using a linear model. **Be sure to provide the article pdf as part of your submission.**
+B. Write a description of the analyses conducted: the model(s) used, the priors chosen (and the justification for those choices), any model comparison methods used, any information you believe to be missing, and any other information relevant to the analysis.
+C. Write a 300-500 word evaluation of the methods used in the article. In your own words, describe if you believe the conclusions of the article were supported by the methods. Imagine you are a reviewer of this journal article, selected due to your methodological expertise and experience with Bayesian methods.
+
+## 2. Bayesian Data Analysis and Writeup (10 points)
+
+This question of the homework assignment focuses on a study conducted in the Department of Recreational Sciences designed to meet two objectives. First, the investigators wanted to examine the extent to which performance in miniature golf could benefit from a new approach to skills training, as well as the extent to which training in related activities (i.e., regular golf) might deferentially impact performance. To	that end, 200 students at Midwestern Rectangular State University were randomly	assigned to one of four conditions: control (usual mini-golf skills instruction), new training for mini-golf only, new training for regular golf only, or new training in both mini-golf and regular golf. The dependent variable was the number of strokes taken on a high-stakes 18-hole round of mini-golf held at the conclusion of training, in which **lower scores (fewer strokes) indicate better performance.**
+
+Second, the investigators also wanted to examine the effects of experience with and enthusiasm for the sport of mini-golf. To that end, prior to beginning the study, participants indicated their previous amount of mini-golf experience on a 1-7 scale, and also completed the Mini-Golf Enthusiasm Scale (MGES). The MGES has been shown in previous research to be a perfectly reliable measure of mini-golf enthusiasm whose items perfectly fit a one-factor model. Therefore, latent trait estimates (Mean~0, SD~1) derived from the MGES were used as an observed predictor variable, along with training group and experience level.
+
+Your task is to estimate a single general linear model that answers these specific research questions: 
+
+- Research Ql: To what extent do training group, experience, and enthusiasm each predict mini-golf performance?
+- Research Q2: To what extent does the effect of training group depend on experience with mini-golf?
+- Research Q3: To what extent does residual variance differ across training group?
+
+Use the control group as the reference for training group, use 4 as the centering point for experience, and use 0 as the centering point for enthusiasm. Data for this homework are in the Homework/HW02 folder in our course repository. For your analysis, do the following:
+
+0. Create a replicate sample (with replacement) of the 200 original data points using your 8-digit Iowa ID number as the random number seed the following syntax:
+```{r sample}
+IowaID = 12345678
+set.seed(12345678)
+
+# read in original data
+HW02DataImport = read.csv(file = "HW02Data.csv")
+
+# create a sample from the data file:
+HW02DataObs = sample(x = 1:nrow(HW02DataImport), size = nrow(HW02DataImport), replace = TRUE)
+
+# create a new data frame using only that sample: -- Use this data frame in all analyses
+HW02Data = HW02DataImport[HW02DataObs,]
+
+```
+
+1. Construct a single Bayesian Linear Model to evaluate the three research questions above, using JAGS to estimate the model
+    - You may select any type of priors for the parameters of the model but you must provide your motivation for your choice
+2. Write a 500-1000 word Results section where you report the results of your analysis, written to be published in a non-methods journal. Include the following in your section:
+    - Model description (what does the model do, in words)
+    - Choice and motivation for prior distribution selection
+    - Choice and motivation for algorithm specifics (e.g., number of chains, number of iterations)
+    - Algorithm convergence diagnostic statistics
+    - Answers to the research questions based on the model results
+    - Any other information you feel relevant to provide evidence for your conclusions
+
+
+## 3. Derivation of posterior distribution of $\boldsymbol{\beta}$ and $\sigma^2_e$ under the Jeffries prior (2 points)
+
+Using the Lecture 8 R Markdown file and following the derivation of the posterior distributions of $\boldsymbol{\beta}$ and $\sigma^2_e$, derive the posterior distribution of these parameters when the priors are the Jeffries prior:
+
+$$f\left(\boldsymbol{\beta} \mid \sigma^2_e \right) = 1$$
+$$f\left( \sigma^2_e \right) = \frac{1}{\sigma^2_e}$$
+
+## Homework Revisions:
+
+In order to be eligible for revisions to this homework, you must have provided a complete attempt to each question in the homework. Information about homework revisions will be distributed with the graded homework.
+
+

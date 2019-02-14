@@ -1,0 +1,7 @@
+model{  
+  # PRIOR DISTRIBUTION ######################################################
+  theta ~ dbeta(alpha, beta)
+  
+  # P(X|THETA) - COND. DIST. OF DATA (AKA LIKELIHOOD) #######################
+  y ~ dbin(theta, J)
+}
