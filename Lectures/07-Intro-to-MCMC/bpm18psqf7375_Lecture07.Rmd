@@ -13,6 +13,7 @@ for(i in 1:length(needed_packages)){
   }
   library(needed_packages[i], character.only = TRUE)
 }
+
 ```
 
 The current lecture is built loosely off of Levy and Mislevy (2016) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
@@ -520,7 +521,26 @@ hdi(BayesianFullModel.Posterior)
 ```
 
 
-Reasons for differences: $\sigma^2_e$. Look at what happens if we fix the residual variance to that it was in the least squares analysis (now using the R2jags package to save some space)
+Reasons for differences: $\sigma^2_e$. Note that the values reported above are the mean of $\sigma^2_e$, which will be pulled toward the tail of the distribution. We can investigate the mode of $\sigma^2_e$, which is more analogous to the MLE (which we get in OLS). Note, the packages below take a while to install. I have commented them out for this example, but if you would like to follow along, please uncomment and provide the time for installation.
+
+```{r mode}
+
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("genefilter", version = "3.8")
+# if (!requireNamespace("modeest")) install.packages("modeest")
+# library(modeest)
+
+mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
+mean(BayesianFullModel.Posterior.All[,10])
+
+summary(FullModel)$sigma
+
+
+```
+
+
+Look at what happens if we fix the residual variance to that it was in the least squares analysis (now using the R2jags package to save some space)
 
 ```{r BayesianModelSyntaxFixedVar}
 
