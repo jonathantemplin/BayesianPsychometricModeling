@@ -5,7 +5,7 @@ output: html_document
 ---
 
 ```{r InstallLoadPackages, echo=FALSE, include=FALSE}
-needed_packages = c("invgamma", "ggplot2", "R2jags", "HDInterval")
+needed_packages = c("invgamma", "ggplot2", "rjags", "R2jags", "HDInterval")
 for(i in 1:length(needed_packages)){
   haspackage = require(needed_packages[i], character.only = TRUE)
   if(haspackage == FALSE){
@@ -13,9 +13,10 @@ for(i in 1:length(needed_packages)){
   }
   library(needed_packages[i], character.only = TRUE)
 }
+
 ```
 
-The current lecture is built loosely off of Levy and Mislevy (2017) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
+The current lecture is built loosely off of Levy and Mislevy (2016) Chapter 5, with information from Chapters 4 and 6 (although not necessarily all from the book).
 
 ## Introduction to Markov Chain Monte Carlo Estimation
 
@@ -61,7 +62,7 @@ Bayesian analysis is all about estimating the posterior distribution
 - Further, rejection-based sampling algorithms often need a tuning period to make the sampling more efficient
     - The tuning period comes before the algorithm begins its burnin period
 
-To demonstrate each type of algorithm, we will use a model for a normal distribution (Chapter 4 of Levy & Mislevy, 2017) 
+To demonstrate each type of algorithm, we will use a model for a normal distribution (Chapter 4 of Levy & Mislevy, 2016) 
     - We will investigate each, briefly
     - We will then switch over to JAGS to show the syntax and let JAGS work
     
@@ -266,14 +267,17 @@ That said, the scale of the regression coefficients will not be constant, so if 
 The first step to building our Bayesian linear model analysis in JAGS is to put all of our data and prior values into an R list object. Here, we will 
 
 ```{r DataList}
+# specify specs for analysis
+n.chains = 4
+
 # specify values of hyperparameters for prior distributions
 
 # for sigma2_e (tau)
 sigma2.0 = var(DietData$WeightLB)
 nu.0 = 1
 
-alpha.0 = nu.0/2
-beta.0 = (nu.0*sigma2.0)/2
+alpha.tau.0 = nu.0/2
+beta.tau.0 = (nu.0*sigma2.0)/2
 
 # for betas:
 betaMean.0 = 0
@@ -288,14 +292,17 @@ BayesianFullModel.Matrix = data.frame(cbind(DietData$WeightLB, BayesianFullModel
 names(BayesianFullModel.Matrix) = c("weight", "intercept", "height", "group2", "group3", "hg2", "hg3")
 BayesianFullModel.Matrix = BayesianFullModel.Matrix[c("weight", "height", "group2", "group3")]
 
-
 # add data and N to list object that we will pass to JAGS
 BayesianFullModel.JAGS.Data = list(N = nrow(DietData),
                                    weight = BayesianFullModel.Matrix$weight,
                                    height = BayesianFullModel.Matrix$height,
                                    group2 = BayesianFullModel.Matrix$group2,
-                                   group3 = BayesianFullModel.Matrix$group3)
-                                   
+                                   group3 = BayesianFullModel.Matrix$group3, 
+                                   betaMean.0 = betaMean.0,
+                                   betaTau.0 = betaTau.0, 
+                                   alpha.tau.0 = alpha.tau.0,
+                                   beta.tau.0 = beta.tau.0)
+
 ```
 
 Next, we can create our JAGS model syntax. We will use the `R2jags` package, so we enclose the syntax in a function. Here, we put the names of the variables and hyperparameters we created in our previous step directly into the JAGS model syntax. 
@@ -307,17 +314,245 @@ There are several things to note here:
 
 ```{r BayesianModelSyntax}
 
-BayesianFullModel = function(){
+
+BayesianFullModel.Syntax = "
+
+  model{
+    # prior distributions: 
+    #   Note that terms on the left are model parameter names we create here
+    beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
+    beta.height        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional slope of height
+    beta.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+    beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+    beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+    beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+    tau.e              ~ dgamma(alpha.tau.0, beta.tau.0)      #prior for 1/sigma^2_e, residual precision
+    
+    
+    # conditional distribution of the data (uses priors above)
+    for (i in 1:N){
+      
+      # creating conditional mean to put into model statement 
+      weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+      
+      # error values (for R^2)
+      error[i] = weight[i]-weight.hat[i]
+      
+      # likelihood from model:
+      weight[i] ~ dnorm(weight.hat[i], tau.e)
+      
+    }
+    
+    # created values to track throughout the Markov chain
+    sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+    sigma.e   <- sqrt(sigma2.e)           #create residual SD
+    
+    # calculate mean difference between groups 2 and 3:
+    dif.group2.group3 <- beta.group3 - beta.group2
+    
+    # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+    variance.pred = sd(weight.hat[])*sd(weight.hat[])
+    variance.error = sd(error[])*sd(error[])
+    Rsquare = variance.pred/(variance.pred + variance.error)
+  }
+
+"
+# the parameter names come from the model syntax in the previous step
+BayesianFullModel.Parameters = c("beta.0", 
+                                 "beta.height", 
+                                 "beta.group2", 
+                                 "beta.group3", 
+                                 "beta.height.group2", 
+                                 "beta.height.group3", 
+                                 "dif.group2.group3",
+                                 "tau.e", 
+                                 "sigma2.e", 
+                                 "sigma.e",
+                                 "Rsquare",
+                                 "deviance")
+
+# in order to have reproducable Markov chains, we need to initialize the random number generator and seed values
+# pick a number: Here is the date I created this syntax
+BayesianFullModel.Seed = 06022019
+
+#   Note: here, the random number seed cannot be the same per seed or the chains will be the same
+RNGname = c("Wichmann-Hill","Marsaglia-Multicarry", "Super-Duper", "Mersenne-Twister")
+if (RNGname[1] %in% c("Wichmann-Hill", "Marsaglia-Multicarry", 
+  "Super-Duper", "Mersenne-Twister")) {
+  RNGname[1] <- paste("base::", RNGname[1], sep = "")
+}
+
+BayesianFullModel.Init.Values <- vector("list", n.chains)
+for (i in 1:n.chains) {
+  BayesianFullModel.Init.Values[[i]]$.RNG.name <- RNGname[1]
+  BayesianFullModel.Init.Values[[i]]$.RNG.seed <- BayesianFullModel.Seed + i
+}
+
+```
+
+Next, to run JAGS, we need a few more values to save: (1) the names of the parameters we wish to have JAGS track across the chains and (2) a random number seed for reproducability. Once we have that, we can run JAGS. Below, I will use the `jags()` function, to which we should also provide the number of chains, number of iterations total, and number of burnin iterations.
+
+```{r RunJAGS}
+
+# load two JAGS modules: GLM (which makes the analysis go more efficiently) and DIC (which gives an index of relative fit)
+load.module("glm")
+load.module("dic")
+
+
+# Submit model to JAGS for compiling. We'll turn adaptation off to control it in the next line of syntax:
+BayesianFullModel.JAGS = jags.model(file = textConnection(BayesianFullModel.Syntax), data = BayesianFullModel.JAGS.Data, n.adapt = 0, n.chains = 4, inits = BayesianFullModel.Init.Values)
+
+# adapting the model: No adaptation needed as Gibbs Sampling is being used -- but good to try in case algorithm isn't Gibbs
+adapt(object = BayesianFullModel.JAGS, n.iter = 1000)
+
+# Draw samples; NOTE: BURNIN IS INCUDED IN SAMPLES
+BayesianFullModel.Samples = coda.samples(model = BayesianFullModel.JAGS, variable.names = BayesianFullModel.Parameters, n.iter = 10000, thin = 1)
+
+# Remove burnin from samples:
+BayesianFullModel.Posterior = window(x = BayesianFullModel.Samples, start = 5001, end = 10000)
+
+```
+
+### Checking Chain Convergence
+
+After the model runs, the next step is to assess convergence of the chains to the posterior distribution. This can be accomplished in several ways:
+
+```{r ModelConvergence}
+# assessing convergence:
+
+# visual assessment
+plot(BayesianFullModel.Posterior) 
+
+# using convegence diagnostics:
+gelman.diag(BayesianFullModel.Posterior) 
+
+# checking autocorrelation: very low for lag 1
+autocorr.diag(BayesianFullModel.Posterior) 
+
+summary(BayesianFullModel.Posterior)
+```
+
+The most common method used for assessing convergence is the Gelman-Rubin $\hat{R}$, which compares the within- and between-chain variance of multiple chains. The `coda` package has a number of convergence diagnostics.
+
+### Checking Model-Data Fit: Posterior Predictive Model Checks
+
+A commonly-used method for evaluating the fit of a Bayesian model to the data is to use posterior predicitive model checks. Posterior predictive model checking is a process that simulates data using model parameters from the converged section of the Markov chain. The Markov chain is important to use, as some parameters have dependencies in the posterior distribution.
+
+```{r plotPost}
+nSimData = 1000
+
+# create one big data object to randomly sample from:
+BayesianFullModel.Posterior.All = do.call("rbind", BayesianFullModel.Posterior)
+parameterNames = colnames(BayesianFullModel.Posterior.All)
+
+# set up model matrix to use in repeated samples
+BayesianFullModel.Matrix2 = BayesianFullModel.Matrix[,2:4]
+
+# add columns for intercept and interactions
+BayesianFullModel.Matrix2 = as.matrix(data.frame(intercept = matrix(data = 1, nrow = nrow(BayesianFullModel.Matrix2), ncol = 1), 
+                                       BayesianFullModel.Matrix2,
+                                       height.group2 = BayesianFullModel.Matrix$height*BayesianFullModel.Matrix$group2,
+                                       height.group3 = BayesianFullModel.Matrix$height*BayesianFullModel.Matrix$group3))
+colnames(BayesianFullModel.Matrix2)
+
+parameterNames = c("beta.0", "beta.height", "beta.group2", "beta.group3", "beta.height.group2", "beta.height.group3")
+
+draws = sample(x = 1:nrow(BayesianFullModel.Posterior.All), size = nSimData, replace = TRUE)  
+
+distSummaries = data.frame(mean = matrix(data = NA, nrow = nSimData),
+                           variance = matrix(data = NA, nrow = nSimData))
+
+# the following syntax is put into a loop for didactic purposes (a version of apply() would be much faster)
+i = 1
+for (i in 1:nSimData){
   
+  # Grab parameters from iteration in draws
+  parameters = BayesianFullModel.Posterior.All[draws[i],]
+
+  # Create Beta vector (which becomes mean of random draw), matching parameters with respective columns in data
+  meanVec = BayesianFullModel.Matrix2 %*% matrix(data = parameters[parameterNames], ncol = 1)
+  
+  # draw random Y for all observations
+  ppcY = rnorm(n = nrow(BayesianFullModel.Matrix2), mean = meanVec, sd = parameters["sigma.e"])
+  
+  # record summaryies of distribution of Y to compare to observed Y
+  distSummaries[i,]$mean = mean(ppcY)
+  distSummaries[i,]$variance = var(ppcY)
+  
+}
+
+# examine how observed sample mean compares to values generated using simulation:
+hist(distSummaries$mean, main = "PPC of Sample Mean")
+lines(x = c(mean(DietData$WeightLB), mean(DietData$WeightLB)), y = c(0,250), col = 2)
+
+# examine how observed sample mean compares to values generated using simulation:
+hist(distSummaries$variance)
+lines(x = c(var(DietData$WeightLB), var(DietData$WeightLB)), y = c(0,250), col = 2)
+
+
+```
+
+### Results
+
+Our chains look converged, our model fit looks good, now we can look at the results:
+
+```{r BayesModelResults}
+# the summary function doesn't print things out well:
+summary(BayesianFullModel.Posterior)
+
+
+# inspecting Bayesian Results
+BayesianFullModel.Summary = summary(BayesianFullModel.Posterior)
+round(BayesianFullModel.Summary$statistics, 3)
+```
+
+Now, let's compare Bayesian with least squares results:
+
+```{r LSresults}
+
+
+summary(FullModel)
+```
+
+Often, each parameter is summarized by its HPD (Highest Posterior Density), a value like a confidence interval. To make our life easy, we can use the `HDInterval` package which makes working with the R2jags output easy:
+
+```{r hpd}
+hdi(BayesianFullModel.Posterior)
+```
+
+
+Reasons for differences: $\sigma^2_e$. Note that the values reported above are the mean of $\sigma^2_e$, which will be pulled toward the tail of the distribution. We can investigate the mode of $\sigma^2_e$, which is more analogous to the MLE (which we get in OLS). Note, the packages below take a while to install. I have commented them out for this example, but if you would like to follow along, please uncomment and provide the time for installation.
+
+```{r mode}
+
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("genefilter", version = "3.8")
+# if (!requireNamespace("modeest")) install.packages("modeest")
+# library(modeest)
+
+mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
+mean(BayesianFullModel.Posterior.All[,10])
+
+summary(FullModel)$sigma
+
+
+```
+
+
+Look at what happens if we fix the residual variance to that it was in the least squares analysis (now using the R2jags package to save some space)
+
+```{r BayesianModelSyntaxFixedVar}
+
+BayesianFullModel.FixedVar = function(){
   # prior distributions: 
   #   Note that terms on the left are model parameter names we create here
-  beta.0             ~ dnorm(0, .00000001) # prior for the intercept
-  beta.height        ~ dnorm(0, .00000001) #prior for the conditional slope of height
-  beta.group2        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 2 and group 1
-  beta.group3        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 3 and group 1
-  beta.height.group2 ~ dnorm(0, .00000001) #prior for the interaction of height with group 2 (dif in slope from group 1) 
-  beta.height.group3 ~ dnorm(0, .00000001) #prior for the interaction of height with group 3 (dif in slope from group 1) 
-  tau.e              ~ dgamma(.5, 1226.069)       #prior for 1/sigma^2_e, residual precision
+  beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
+  beta.height        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional slope of height
+  beta.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+  beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+  beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+  beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
   
   
   # conditional distribution of the data (uses priors above)
@@ -330,13 +565,9 @@ BayesianFullModel = function(){
     error[i] = weight[i]-weight.hat[i]
     
     # likelihood from model:
-    weight[i] ~ dnorm(weight.hat[i], tau.e)
+    weight[i] ~ dnorm(weight.hat[i], 1/sampleVar)
     
   }
-  
-  # created values to track throughout the Markov chain
-  sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
-  sigma.e   <- sqrt(sigma2.e)           #create residual SD
   
   # calculate mean difference between groups 2 and 3:
   dif.group2.group3 <- beta.group3 - beta.group2
@@ -345,138 +576,184 @@ BayesianFullModel = function(){
   variance.pred = sd(weight.hat[])*sd(weight.hat[])
   variance.error = sd(error[])*sd(error[])
   Rsquare = variance.pred/(variance.pred + variance.error)
-  
 }
 
-```
-
-Next, to run JAGS, we need a few more values to save: (1) the names of the parameters we wish to have JAGS track across the chains and (2) a random number seed for reproducability. Once we have that, we can run JAGS. Below, I will use the `jags()` function, to which we should also provide the number of chains, number of iterations total, and number of burnin iterations.
-
-```{r RunJAGS}
 # the parameter names come from the model syntax in the previous step
-BayesianFullModel.Parameters = c("beta.0", 
-                                 "beta.height", 
-                                 "beta.group2", 
-                                 "beta.group3", 
-                                 "beta.height.group2", 
-                                 "beta.height.group3", 
-                                 "dif.group2.group3",
-                                 "tau.e", 
-                                 "sigma2.e", 
-                                 "sigma.e",
-                                 "Rsquare")
+BayesianFullModel.FixedVar.Parameters = c("beta.0", 
+                                          "beta.height", 
+                                          "beta.group2", 
+                                          "beta.group3", 
+                                          "beta.height.group2", 
+                                          "beta.height.group3", 
+                                          "dif.group2.group3",
+                                          "Rsquare")
+
+# add data and N to list object that we will pass to JAGS
+BayesianFullModel.FixedVar.Data = list(N = nrow(DietData),
+                                       weight = BayesianFullModel.Matrix$weight,
+                                       height = BayesianFullModel.Matrix$height,
+                                       group2 = BayesianFullModel.Matrix$group2,
+                                       group3 = BayesianFullModel.Matrix$group3, 
+                                       betaMean.0 = betaMean.0,
+                                       betaTau.0 = betaTau.0, 
+                                       sampleVar = summary(FullModel)$sigma^2)
 
 # pick a number: Here is the date I created this syntax
-BayesianFullModel.Seed = 06022019
+# in order to have reproducable Markov chains, we need to initialize the random number generator and seed values
+# pick a number: Here is the date I created this syntax
+BayesianFullModel.FixedVar.Seed = 11022019
 
-BayesianFullModel.JAGS = jags(data = BayesianFullModel.JAGS.Data,
-                              parameters.to.save = BayesianFullModel.Parameters, 
-                              model.file = BayesianFullModel,
-                              n.chains = 4,
-                              n.iter = 10000,
-                              n.burnin = 5000, 
-                              n.thin = 1,
-                              jags.seed = BayesianFullModel.Seed)
-
-
-```
-
-### Checking Chain Convergence
-
-After the model runs, the next step is to assess convergence of the chains to the posterior distribution. This can be accomplished in several ways:
-
-```{r ModelConvergence}
-# assessing convergence:
-
-# visual assessment
-plot(as.mcmc(BayesianFullModel.JAGS)) 
-
-```
-
-The most common method used for assessing convergence is the Gelman-Rubin $\hat{R}$, which compares the within- and between-chain variance of multiple chains. The `coda` package has a number of convergence diagnostics.
-
-Our chains look converged, now we can look at the results:
-
-```{r BayesModelResults}
-# inspecting Bayesian Results
-print(BayesianFullModel.JAGS)
-```
-
-Now, let's compare Bayesian with least squares results
-
-```{r LSresults}
-summary(FullModel)
-```
-
-Reasons for differences: $\sigma^2_e$. Look at what happens if we fix the residual variance to that it was in the least squares analysis:
-
-```{r BayesianModelSyntaxFixedVar}
-
-BayesianFullModelFixedVar = function(){
-  
-  # prior distributions: 
-  #   Note that terms on the left are model parameter names we create here
-  beta.0             ~ dnorm(0, .00000001) # prior for the intercept
-  beta.height        ~ dnorm(0, .00000001) #prior for the conditional slope of height
-  beta.group2        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 2 and group 1
-  beta.group3        ~ dnorm(0, .00000001) #prior for the conditional mean difference between group 3 and group 1
-  beta.height.group2 ~ dnorm(0, .00000001) #prior for the interaction of height with group 2 (dif in slope from group 1) 
-  beta.height.group3 ~ dnorm(0, .00000001) #prior for the interaction of height with group 3 (dif in slope from group 1) 
-  
-  
-  # conditional distribution of the data (uses priors above)
-  for (i in 1:N){
-    
-    # creating conditional mean to put into model statement 
-    weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
-    
-    # likelihood from model:
-    weight[i] ~ dnorm(weight.hat[i], 0.01582614)
-    
-  }
-  
-  # calculate mean difference between groups 2 and 3:
-  dif.group2.group3 <- beta.group3 - beta.group2
+#   Note: here, the random number seed cannot be the same per seed or the chains will be the same
+RNGname = c("Wichmann-Hill","Marsaglia-Multicarry", "Super-Duper", "Mersenne-Twister")
+if (RNGname[1] %in% c("Wichmann-Hill", "Marsaglia-Multicarry", 
+  "Super-Duper", "Mersenne-Twister")) {
+  RNGname[1] <- paste("base::", RNGname[1], sep = "")
 }
 
-BayesianFullModelFixedVar.Parameters = c("beta.0", 
-                                         "beta.height", 
-                                         "beta.group2", 
-                                         "beta.group3", 
-                                         "beta.height.group2", 
-                                         "beta.height.group3", 
-                                         "dif.group2.group3")
+BayesianFullModel.FixedVar.Init.Values <- vector("list", n.chains)
+for (i in 1:n.chains) {
+  BayesianFullModel.FixedVar.Init.Values[[i]]$.RNG.name <- RNGname[1]
+  BayesianFullModel.FixedVar.Init.Values[[i]]$.RNG.seed <- BayesianFullModel.FixedVar.Seed + i
+}
 
-# pick a number: Here is the date I created this syntax
-BayesianFullModelFixedVar.Seed = 060220191
 
-BayesianFullModelFixedVar.JAGS = jags(data = BayesianFullModel.JAGS.Data,
-                                      parameters.to.save = BayesianFullModelFixedVar.Parameters, 
-                                      model.file = BayesianFullModelFixedVar,
+
+BayesianFullModelFixedVar.JAGS = jags(data = BayesianFullModel.FixedVar.Data,
+                                      inits = BayesianFullModel.FixedVar.Init.Values,
+                                      parameters.to.save = BayesianFullModel.FixedVar.Parameters, 
+                                      model.file = BayesianFullModel.FixedVar,
                                       n.chains = 4,
                                       n.iter = 50000,
                                       n.burnin = 20000, 
-                                      n.thin = 1,
-                                      jags.seed = BayesianFullModelFixedVar.Seed)
+                                      n.thin = 1)
+
 
 BayesianFullModelFixedVar.JAGS
+```
+
+## Model Comparison
+
+To show how to compare two models using the DIC (Deviance Information Criterion), we will again revisit the full model, only this time we will model the variance using a log-linear model, making this a location-scale model:
+
+$$\log\left(\frac{1}{\sigma^2_e}\right) = \log(1) - \log \left( \sigma^2_e\right) = - \log \left( \sigma^2_e\right) = \gamma_0$$
+
+Here, $\gamma_0$ is a continuous variable that can take be real number. So, we can use a normal prior distribution on $\gamma_0$. Note, $\gamma_0$ is the value for the intercept of the residual precision $\tau_e = \frac{1}{\sigma^2_e}$ whereas $-\gamma_0$ is the value for the intercept of the variance. As such, this analysis yields a log-normal prior distribution on $\sigma^2$, so we are essentially comparing models with different priors.
+
+```{r modelCompare}
+
+BayesianFullModel = function(){
+ # prior distributions: 
+    #   Note that terms on the left are model parameter names we create here
+    beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
+    beta.height        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional slope of height
+    beta.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+    beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+    beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+    beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+    tau.e              ~ dgamma(alpha.tau.0, beta.tau.0)      #prior for 1/sigma^2_e, residual precision
+    
+    
+    # conditional distribution of the data (uses priors above)
+    for (i in 1:N){
+      
+      # creating conditional mean to put into model statement 
+      weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+      
+      # error values (for R^2)
+      error[i] = weight[i]-weight.hat[i]
+      
+      # likelihood from model:
+      weight[i] ~ dnorm(weight.hat[i], tau.e)
+      
+    }
+    
+    # created values to track throughout the Markov chain
+    sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+    sigma.e   <- sqrt(sigma2.e)           #create residual SD
+    
+    # calculate mean difference between groups 2 and 3:
+    dif.group2.group3 <- beta.group3 - beta.group2
+    
+    # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+    variance.pred = sd(weight.hat[])*sd(weight.hat[])
+    variance.error = sd(error[])*sd(error[])
+    Rsquare = variance.pred/(variance.pred + variance.error)
+}
+
+BayesianFullModel.Results = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, parameters.to.save = BayesianFullModel.Parameters,
+                                 model.file = BayesianFullModel, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
+
+
+BayesianFullModel2 = function(){
+ # prior distributions: 
+    #   Note that terms on the left are model parameter names we create here
+    beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
+    beta.height        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional slope of height
+    beta.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+    beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+    beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+    beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+    gamma.0            ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of residual precision
+    
+    tau.e <- exp(gamma.0)
+    
+    
+    # conditional distribution of the data (uses priors above)
+    for (i in 1:N){
+      
+      # creating conditional mean to put into model statement 
+      weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+      
+      # error values (for R^2)
+      error[i] = weight[i]-weight.hat[i]
+      
+      # likelihood from model:
+      weight[i] ~ dnorm(weight.hat[i], tau.e)
+      
+    }
+    
+    # created values to track throughout the Markov chain
+    sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+    sigma.e   <- sqrt(sigma2.e)           #create residual SD
+    
+    # calculate mean difference between groups 2 and 3:
+    dif.group2.group3 <- beta.group3 - beta.group2
+    
+    # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+    variance.pred = sd(weight.hat[])*sd(weight.hat[])
+    variance.error = sd(error[])*sd(error[])
+    Rsquare = variance.pred/(variance.pred + variance.error)
+}
+
+BayesianFullModel.Results2 = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, parameters.to.save = c(BayesianFullModel.Parameters, "gamma.0"),
+                                 model.file = BayesianFullModel2, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
+
+BayesianFullModel.Results
+BayesianFullModel.Results2
+
 
 ```
 
-# Results
+### Algorithm Used
 
-Often, each parameter is summarized by its HPD (Highest Posterior Density), a value like a confidence interval. To make our life easy, we can use the `HDInterval` package which makes working with the R2jags output easy:
+Because we changed away from a conjugate prior, we no longer use Gibbs sampling for all parameters. Instead, we now have a "RealSlicer" (a form of Metropolis-Hastings) for $\gamma_0$:
 
-```{r hpd}
-hdi(BayesianFullModel.JAGS)
+```{r sampling}
+list.samplers(BayesianFullModel.Results2$model)
 ```
 
-Here, if one was going to talk about if a parameter was "zero" or was "significant" (terms Bayesians don't use), we see if zero is in the HPD. Here, we see the conditional slope for height has zero along with the difference between groups 2 and 3. Can you interpret these values?
+### Deviance Information Criterion
+
+The DIC is a Bayesian version of an information criterion used to compare the relative fit of multiple models (see https://en.wikipedia.org/wiki/Deviance_information_criterion). Lower values are better.
+
+The deviance is given by -2 times the likelihood plus a constant (that goes away in model comparisons).
+
+$$ D = -2 \log \left( p \left(y \mid \boldsymbol{\theta} \right) \right) + C$$
+The DIC is given by the deviance, evaluated at the EAP estimate of all parameters, plus a penalty. The earliest form of the penalty $p_D$ is:
+
+$$ p_D = \bar{D} - D\left( \bar{\boldsymbol{\theta}}\right)$$
+
+$$ DIC = D \left( \bar{\boldsymbol{\theta}} \right) + 2p_D$$
 
 
-
-
-
-
-
-
+Here, the smallest value of the DIC belongs to the model with the log-linear variance prior. So, it is preferred and would be the one interpreted.
