@@ -530,7 +530,7 @@ Reasons for differences: $\sigma^2_e$. Note that the values reported above are t
 #     install.packages("BiocManager")
 # BiocManager::install("genefilter", version = "3.8")
 # if (!requireNamespace("modeest")) install.packages("modeest")
- library(modeest)
+library(modeest)
 
 mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
 mean(BayesianFullModel.Posterior.All[,10])

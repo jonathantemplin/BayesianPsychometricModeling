@@ -182,12 +182,10 @@ The product of prior times data likelihood for $\sigma^2_e$ is:
 
 
 $$f(\sigma^2_e | \boldsymbol{\beta}, \mathbf{X}, \mathbf{Y} ) \propto  \left[ \left( \sigma^2_e\right)^{-\frac{\nu_0}{2} +1} \exp\left( - \frac{\nu_0 \sigma^2_0}{2\sigma_e^2}\right) \right] \times \left[ \left( \sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} \right]
-
 $$
 
 
 $$ = \left( \sigma^2_e\right)^{-\frac{\nu_0 - N}{2}} \exp\left( - \frac{\nu_0 \sigma^2_0 +  \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)}{2\sigma_e^2} \right)
-
 $$
 
 This is the form of an inverse gamma distribution, so the posterior distribution for $\sigma^2_e$ is inverse gamma, with: 
