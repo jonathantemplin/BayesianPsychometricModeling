@@ -669,21 +669,23 @@ BayesianFullModel = function(){
     }
     
     # created values to track throughout the Markov chain
-    sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
-    sigma.e   <- sqrt(sigma2.e)           #create residual SD
+     sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+     sigma.e   <- sqrt(sigma2.e)           #create residual SD
     
     # calculate mean difference between groups 2 and 3:
     dif.group2.group3 <- beta.group3 - beta.group2
     
+    #difRPrec.group2.group3 <- gamma.group3 - gamma.group2
+    
     # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
-    variance.pred = sd(weight.hat[])*sd(weight.hat[])
-    variance.error = sd(error[])*sd(error[])
-    Rsquare = variance.pred/(variance.pred + variance.error)
+     variance.pred = sd(weight.hat[])*sd(weight.hat[])
+     variance.error = sd(error[])*sd(error[])
+     Rsquare = variance.pred/(variance.pred + variance.error)
 }
 
-BayesianFullModel.Results = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, parameters.to.save = BayesianFullModel.Parameters,
+BayesianFullModel.Results = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, 
+                                 parameters.to.save = BayesianFullModel.Parameters,
                                  model.file = BayesianFullModel, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
-
 
 BayesianFullModel2 = function(){
  # prior distributions: 
@@ -694,8 +696,7 @@ BayesianFullModel2 = function(){
     beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
     beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
     beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
-    gamma.0            ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of residual precision
-    
+    gamma.0            ~ dnorm(betaMean.0, betaTau.0) #prior for the log residual precision
     tau.e <- exp(gamma.0)
     
     
@@ -714,24 +715,84 @@ BayesianFullModel2 = function(){
     }
     
     # created values to track throughout the Markov chain
-    sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
-    sigma.e   <- sqrt(sigma2.e)           #create residual SD
+     sigma2.e  <- 1/tau.e                  #create residual variance from 1/precision
+     sigma.e   <- sqrt(sigma2.e)           #create residual SD
     
     # calculate mean difference between groups 2 and 3:
     dif.group2.group3 <- beta.group3 - beta.group2
     
+    #difRPrec.group2.group3 <- gamma.group3 - gamma.group2
+    
     # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
-    variance.pred = sd(weight.hat[])*sd(weight.hat[])
-    variance.error = sd(error[])*sd(error[])
-    Rsquare = variance.pred/(variance.pred + variance.error)
+     variance.pred = sd(weight.hat[])*sd(weight.hat[])
+     variance.error = sd(error[])*sd(error[])
+     Rsquare = variance.pred/(variance.pred + variance.error)
 }
 
-BayesianFullModel.Results2 = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, parameters.to.save = c(BayesianFullModel.Parameters, "gamma.0"),
+BayesianFullModel2.Results = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, 
+                                 parameters.to.save = c(BayesianFullModel.Parameters, "gamma.0"),
                                  model.file = BayesianFullModel2, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
+
+
+BayesianFullModel3 = function(){
+ # prior distributions: 
+    #   Note that terms on the left are model parameter names we create here
+    beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
+    beta.height        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional slope of height
+    beta.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+    beta.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+    beta.height.group2 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 2 (dif in slope from group 1) 
+    beta.height.group3 ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of height with group 3 (dif in slope from group 1) 
+    gamma.0            ~ dnorm(betaMean.0, betaTau.0) #prior for the interaction of residual precision
+    gamma.group2        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 2 and group 1
+    gamma.group3        ~ dnorm(betaMean.0, betaTau.0) #prior for the conditional mean difference between group 3 and group 1
+    # tau.e <- exp(gamma.0)
+    
+    
+    # conditional distribution of the data (uses priors above)
+    for (i in 1:N){
+      
+      # creating conditional mean to put into model statement 
+      weight.hat[i] <- beta.0 + beta.height*height[i] + beta.group2*group2[i] + beta.group3*group3[i] + beta.height.group2*height[i]*group2[i] + beta.height.group3*height[i]*group3[i]
+      
+      # error values (for R^2)
+      error[i] = weight[i]-weight.hat[i]
+      
+      varhat[i] = gamma.0 + gamma.group2*group2[i] + gamma.group3*group3[i]
+      tau.e[i] <- exp(varhat[i])
+      # likelihood from model:
+      weight[i] ~ dnorm(weight.hat[i], tau.e[i])
+      
+    }
+    
+  # calculate mean difference between groups 2 and 3:
+    dif.group2.group3 <- beta.group3 - beta.group2
+    
+    difRPrec.group2.group3 <- gamma.group3 - gamma.group2
+    
+    # calculate R^2 based on http://www.stat.columbia.edu/~gelman/research/unpublished/bayes_R2.pdf
+    # variance.pred = sd(weight.hat[])*sd(weight.hat[])
+    # variance.error = sd(error[])*sd(error[])
+    # Rsquare = variance.pred/(variance.pred + variance.error)
+}
+BayesianFullModel3.Parameters = c("beta.0", 
+                                          "beta.height", 
+                                          "beta.group2", 
+                                          "beta.group3", 
+                                          "beta.height.group2", 
+                                          "beta.height.group3", 
+                                          "dif.group2.group3",
+                                          "difRPrec.group2.group3",
+                                          "gamma.0", "gamma.group2", "gamma.group3")
+
+BayesianFullModel.Results3 = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, 
+                                  parameters.to.save = BayesianFullModel.FixedVar.Parameters, 
+                                  model.file = BayesianFullModel2, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
 
 BayesianFullModel.Results
 BayesianFullModel.Results2
-
+traceplot(BayesianFullModel.Results3)
+BayesianFullModel.Results3
 
 ```
 
