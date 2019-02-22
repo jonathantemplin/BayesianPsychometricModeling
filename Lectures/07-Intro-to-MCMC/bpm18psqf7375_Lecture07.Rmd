@@ -318,6 +318,7 @@ There are several things to note here:
 BayesianFullModel.Syntax = "
 
   model{
+
     # prior distributions: 
     #   Note that terms on the left are model parameter names we create here
     beta.0             ~ dnorm(betaMean.0, betaTau.0) # prior for the intercept
@@ -524,12 +525,12 @@ hdi(BayesianFullModel.Posterior)
 Reasons for differences: $\sigma^2_e$. Note that the values reported above are the mean of $\sigma^2_e$, which will be pulled toward the tail of the distribution. We can investigate the mode of $\sigma^2_e$, which is more analogous to the MLE (which we get in OLS). Note, the packages below take a while to install. I have commented them out for this example, but if you would like to follow along, please uncomment and provide the time for installation.
 
 ```{r mode}
-
+# 
 # if (!requireNamespace("BiocManager", quietly = TRUE))
 #     install.packages("BiocManager")
 # BiocManager::install("genefilter", version = "3.8")
 # if (!requireNamespace("modeest")) install.packages("modeest")
-# library(modeest)
+ library(modeest)
 
 mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
 mean(BayesianFullModel.Posterior.All[,10])

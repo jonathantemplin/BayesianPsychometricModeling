@@ -41,6 +41,8 @@ Now, you can take notes in the files of Lecture 08, and then commit them to your
 When lecture starts again, now you will need a new set of notes, so you want the latest version of the master branch. You can merge it with your local branch so that you don't overwrite any of your notes in your notes folder. To do this, use the following commands in the terminal:
 
 `git fetch`
+
+
 `git rebase origin/master`
 
 Note: The rebase command is very powerful. Any changes you made to files that also changed on the master branch will be overwritten. That's the reason for creating a separate notes folder.

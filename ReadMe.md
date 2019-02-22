@@ -8,3 +8,4 @@ This repository contains course files and information for PSQF 7375: Bayesian Ps
 ## References
 
 Levy, R., & Mislevy, R. J. (2016). Bayesian psychometric modeling. Boca Raton: CRC Press.
+
