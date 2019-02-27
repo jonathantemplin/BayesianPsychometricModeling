@@ -66,7 +66,7 @@ for (chainNum in 1:nChains){
   Beta = matrix(data = rnorm(n = nBeta, mean = betaMean.0, sd = sqrt(betaVariance.0)), nrow = nBeta, ncol = 1)
   sigma2 = rinvgamma(n = 1, shape = alpha.sigma2.0, rate = beta.sigma2.0)
 
-  iter = 1
+  iter = 2
   for (iter in 1:nIterations){
     
     

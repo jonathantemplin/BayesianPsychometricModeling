@@ -1,0 +1,79 @@
+---
+title: 'Homework #3'
+author: "Bayesian Psychometric Models"
+date: "Due Date: March 15, 2019 (15 points total)"
+output: html_document
+---
+
+This homework consists of three problems, with point totals varying by problem. Please submit your homework as an R Markdown file named FirstName_LastName.Rmd with answers to the questions clearly labeled. 
+
+## A. Bayesian Confirmatory Factor Analysis Article Review (3 points)
+
+1. Find a published article in an empirical journal (that is, not a statistics/data science journal; ask if you have questions) that reports the results of a Bayesian analysis using confirmatory factor analysis. **Be sure to provide the article pdf as part of your submission.**
+2.  Write a description of the analyses conducted: the model(s) used, the priors chosen (and the justification for those choices), any model comparison methods used, any information you believe to be missing, and any other information relevant to the analysis.
+3.  Write a 300-500 word evaluation of the methods used in the article. In your own words, describe if you believe the conclusions of the article were supported by the methods. Imagine you are a reviewer of this journal article, selected due to your methodological expertise and experience with Bayesian methods.
+
+## B. Bayesian Confirmatory Factor Analysis and Writeup (12 points)
+
+This question of the homework assignment uses a resampled form of actual data that was collected in the study of subjects' attitudes toward food and their body image. A sample of 282 undergraduates from a nondescript public university responded to twenty three items, each of which was measured on a 6-point Likert scale (with options 1=Strongly Disagree, 2=Disagree, 3=Slightly Disagree, 4=Slightly Agree, 5=Agree, and 6=Strongly Agree). The items were as follows:
+
+1. 	I think that my stomach is too big.       
+2. 	I think that my thighs are too large.
+3.	I think that my stomach is just the right size.
+4.	I feel satisfied with the shape of my body.
+5.  I like the shape of my backside.
+6.  I think my hips are too big.
+7.  I think that my thighs are just the right size.
+8.  I think my backside is too large.
+9.  I think that my hips are just the right size.
+10. I eat when I am upset.
+11. I stuff myself with food.
+12. I have gone on eating binges where I felt that I could not stop.
+13. I think about bingeing (overeating).
+14. I eat moderately in front of others and stuff myself when they’re gone.
+15. I have the thought of trying to vomit in order to lose weight.
+16. I eat or drink in secrecy.
+17. I eat sweets and carbohydrates without feeling nervous.
+18. I think about dieting.
+19. I feel extremely guilty after overeating.
+20. I am terrified of gaining weight.
+21. I exaggerate or magnify the importance of weight.
+22. I am preoccupied with the desire to be thinner.
+23. If I gain a pound, I will worry that I will keep gaining.
+
+The scale was designed so that the first nine were supposed to measure body satisfaction, items 10-16 were supposed to measure tendency to binge eat, and items 17-23 were supposed to measure preoccupation with thinness. Data for this homework are in the Homework/HW02 folder in our course repository. For all models below, you may select any type of priors for the parameters of the model but you must provide your motivation for your choice. For your analysis, do the following:
+
+0. Create a replicate sample (with replacement) of the 282 original data points using your 8-digit Iowa ID number as the random number seed the following syntax:
+```{r sample}
+IowaID = 12345678
+set.seed(12345678)
+
+# read in original data
+HW03DataImport = read.csv(file = "HW03Data.csv")
+
+# create a sample from the data file:
+HW03DataObs = sample(x = 1:nrow(HW03DataImport), size = nrow(HW03DataImport), replace = TRUE)
+
+# create a new data frame using only that sample: -- Use this data frame in all analyses
+HW03Data = HW03DataImport[HW03DataObs,]
+
+```
+
+1. Construct a Bayesian Confirmatory Factor Analysis Model in JAGS to evaluate the model fit of the three-factor model to the data.
+    - Evaluate global model fit using a posterior predictive model check for the SRMR
+    - Evaluate bivariate model fit using posterior predictive model check for each correlation
+2. Estimate the saturated model in JAGS
+    - Using the DIC, compare the model fit between the three-factor model and the saturated model 
+3. Write a 500-1000 word Results section where you report the results of your analysis, written to be published in a technical manual documenting the analysis process underlying the scale. Include the following in your section:
+    - Model description (what does the model do, in words)
+    - Choice and motivation for prior distribution selection
+    - Choice and motivation for algorithm specifics (e.g., number of chains, number of iterations)
+    - Algorithm convergence diagnostic statistics
+    - Information about which items may need to be dropped
+    - Any other information you feel relevant to provide evidence for your conclusions
+
+## Homework Revisions:
+
+In order to be eligible for revisions to this homework, you must have provided a complete attempt to each question in the homework. Information about homework revisions will be distributed with the graded homework.
+
+

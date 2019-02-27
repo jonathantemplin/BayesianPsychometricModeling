@@ -801,6 +801,7 @@ BayesianFullModel.Results3
 Because we changed away from a conjugate prior, we no longer use Gibbs sampling for all parameters. Instead, we now have a "RealSlicer" (a form of Metropolis-Hastings) for $\gamma_0$:
 
 ```{r sampling}
+list.samplers(BayesianFullModel.Results$model)
 list.samplers(BayesianFullModel.Results2$model)
 ```
 
