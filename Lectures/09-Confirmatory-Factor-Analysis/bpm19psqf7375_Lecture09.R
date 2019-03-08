@@ -113,27 +113,27 @@ model01a.syntax = "
 model{
 # measurement model specification
 for (person in 1:N){
-for (item in 1:I){
-mean[person, item] = mu[item] + lambda[item]*xfactor[person]
-X[person, item] ~ dnorm(mean[person,item], inv.psi[item])    
-}
+  for (item in 1:I){
+    mean[person, item] = mu[item] + lambda[item]*xfactor[person]
+    X[person, item] ~ dnorm(mean[person,item], inv.psi[item])    
+  }
 }
 
 # prior distributions for the factor:
 for (person in 1:N){
-xfactor[person] ~ dnorm(0, 1)
+  xfactor[person] ~ dnorm(0, 1)
 }
 
 # prior distributions for the measurement model parameters
 for (item in 1:I){
-mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
-lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0)
-inv.psi[item] ~ dgamma(psi.alpha.0, psi.beta.0[item])
+  mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
+  lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0)
+  inv.psi[item] ~ dgamma(psi.alpha.0, psi.beta.0[item])
 }
 
 # saved parameters
 for (item in 1:I){
-psi[item] <- 1/inv.psi[item]
+  psi[item] <- 1/inv.psi[item]
 }
 }
 "
@@ -152,6 +152,8 @@ model01a.JAGS = jags.model(
   inits = model01a.init.values
 )
 
+list.samplers(model01a.JAGS)
+
 # Draw samples; NOTE: BURNIN IS INCUDED IN SAMPLES
 model01a.Samples = coda.samples(
   model = model01a.JAGS,
@@ -160,7 +162,7 @@ model01a.Samples = coda.samples(
   thin = nthin
 )
 
-library(R2jags)
+
 
 gelman.diag(model01a.Samples)
 summary(model01a.Samples)
@@ -213,27 +215,27 @@ model01b.marker.syntax = "
 model{
 # measurement model specification
 for (person in 1:N){
-for (item in 1:I){
-mean[person, item] = mu[item] + lambda[item]*xfactor[person]
-X[person, item] ~ dnorm(mean[person,item], inv.psi[item])    
-}
+  for (item in 1:I){
+    mean[person, item] = mu[item] + lambda[item]*xfactor[person]
+    X[person, item] ~ dnorm(mean[person,item], inv.psi[item])    
+  }
 }
 
 # prior distributions for the factor:
 for (person in 1:N){
-xfactor[person] ~ dnorm(0, factor.precision)
+  xfactor[person] ~ dnorm(0, factor.precision)
 }
 
 # prior distributions for the measurement model mean/precision parameters
 for (item in 1:I){
-mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
-inv.psi[item] ~ dgamma(psi.alpha.0, psi.beta.0[item])
+  mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
+  inv.psi[item] ~ dgamma(psi.alpha.0, psi.beta.0[item])
 }
 
 # prior distributions for the loadings (except the first loading, which is fixed to 1.0)
 lambda[1] <- 1
 for (item in 2:I){
-lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0)
+  lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0)
 }    
 
 # prior distribution for the factor variance
@@ -242,7 +244,7 @@ factor.precision ~ dgamma(factor.alpha.0, factor.beta.0)
 # saved parameters
 factor.variance <- 1/factor.precision
 for (item in 1:I){
-psi[item] <- 1/inv.psi[item]
+  psi[item] <- 1/inv.psi[item]
 }
 }
 "
@@ -272,7 +274,7 @@ model01b.parameters = c("mu", "lambda",  "psi", "factor.variance", "deviance")
 load.module("glm")
 load.module("dic")
 
-# Submit model to JAGS for compiling. We'll turn adaptation off to control it in the next line of syntax:
+# Submit model to JAGS for compiling
 model01b.marker.JAGS = jags.model(
   file = textConnection(model01b.marker.syntax),
   data = model01b.data,
@@ -329,14 +331,22 @@ phiCols = grep(x = colnames(model01b.Posterior.all), pattern = "factor.variance"
 
 # save simulated correlations:
 simCor = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
-simCov = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
+simCovModel01b = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
 simSRMR = matrix(data = NA, nrow = nSimulatedDataSets, ncol = 1)
+simRMSEA = matrix(data = NA, nrow = nSimulatedDataSets, ncol = 1)
+
+# save model-based covariances:
+model01bCov = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# model DF
+modelDF = (nItems*(nItems+1)/2) - 20
 
 dataCov = cov(conspiracy[paste0("PolConsp", 1:10)])
 detDataCov = det(dataCov)
 
 # loop through data sets (can be sped up with functions and lapply)
 pb = txtProgressBar()
+sim = 1
 for (sim in 1:nSimulatedDataSets){
   
   # draw sample from one iteration of posterior chain 
@@ -351,7 +361,8 @@ for (sim in 1:nSimulatedDataSets){
   # create model-implied mean and covariance matrix (marginal for X)
   meanVec = mu
   covMat = lambda %*% phi %*% t(lambda) + psi
-  
+  model01bCov[sim, ] = c(covMat)
+    
   # randomly draw data with same sample size from MVN with mean=meanVec and cov=covMat
   simData = rmvnorm(n = nrow(conspiracy), mean = meanVec, sigma = covMat)
   
@@ -360,20 +371,31 @@ for (sim in 1:nSimulatedDataSets){
   
   # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
   simCov = cov(simData)
+  simCovModel01b[sim,] = c(cov(simData))
   difCov = dataCov-simCov
-  stdDifCov = solve(diag(diag(simCov))) %*% difCov %*% solve(diag(diag(simCov)))
-  simSRMR[sim,1] = 2*sum(colSums(stdDifCov*stdDifCov))/(ncol(simCov)*(ncol(simCov)+1))
+  stdDifCov = sqrt(solve(diag(diag(dataCov)))) %*% difCov %*% sqrt(solve(diag(diag(dataCov))))
+
+  # using formula from book:
+  simSRMR[sim,1] = sum(colSums(stdDifCov*stdDifCov))/((ncol(simCov)*(ncol(simCov)-1))/2)
+  
+  # can also do a similar process for RMSEA (assuming covariance matrix is from ML estimation - discrepancy function)
+  simRMSEA[sim,1] = sqrt((log(det(simCov)) - log(det(dataCov)) + sum(diag(dataCov %*% solve(simCov))) - nItems)/modelDF)
   
   setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
 }
 close(pb)
-
 
 # first, we examine the posterior predictive distribution of SRMR (p. 241)
 hist(simSRMR[,1])
 plot(density(simSRMR))
 quantile(simSRMR)
 mean(simSRMR)
+
+# next we can examine the posterior predictive distribution of RMSEA
+hist(simRMSEA[,1])
+plot(density(simRMSEA))
+quantile(simRMSEA)
+mean(simRMSEA)
 
 # label values of simCor to ensure we have the right comparison
 corNames = NULL
@@ -384,11 +406,19 @@ for (i in 1:(ncol(simData)-1)){
 }
 colnames(simCor) = corNames
 
+# show how one correlation compares to distribution of simulated correlations
+dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
+hist(simCor[,1])
+plot(density(simCor[,1]))
+lines(x = c(dataCor[1,2], dataCor[1,2]), y = c(0, 5), col = 2)
+quantile(simRMSEA[,1])
+mean(simRMSEA)
+
 # create quantiles of correlations to see where each observed correlation falls
 corQuantiles = NULL
 
 # compute the quantiles of the observed correlations:
-dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
+
 col = 1
 for (i in 1:(ncol(simData)-1)){
   for (j in (i+1):ncol(simData)){
@@ -402,8 +432,6 @@ for (i in 1:(ncol(simData)-1)){
 colnames(corQuantiles)[1:2] = c("Item 1", "Item 2")
 colnames(corQuantiles)[9:10] = c("ObsCor", "CorPctile")
 corQuantiles[which(corQuantiles[,10] > .975 | corQuantiles[,10] < .025),]
-
-
 
 # Model 2a: Saturated Mean/Variance/Covariance Model ==================================================================
 
@@ -441,19 +469,19 @@ model02a.parameters = c("mu", "sigma", "deviance")
 
 model02a.syntax = "
 model{
-# define model likelihood as multivariate normal
-for (person in 1:N){
-X[person, 1:I] ~ dmnorm(mu[1:I], sigmainv[1:I, 1:I])
-}
+  # define model likelihood as multivariate normal
+  for (person in 1:N){
+    X[person, 1:I] ~ dmnorm(mu[1:I], sigmainv[1:I, 1:I])
+  }
 
-# prior for mean vector
-mu[1:I] ~ dmnorm(meanVec.0, meanPrecision.0) 
+  # prior for mean vector
+  mu[1:I] ~ dmnorm(meanVec.0, meanPrecision.0) 
 
-# prior for inverse covariance matrix
-sigmainv[1:I, 1:I] ~ dwish(R.0, k.0)
+  # prior for inverse covariance matrix
+  sigmainv[1:I, 1:I] ~ dwish(R.0, k.0)
 
-# save covariance matrix 
-sigma = inverse(sigmainv)
+  # save covariance matrix 
+  sigma = inverse(sigmainv)
 
 }
 "
@@ -493,9 +521,129 @@ model02a.Posterior = window(x = model02a.Samples, start = nburnin + 1, end = nit
 # convergence check fails: there is an issue with the multivariate version
 gelman.diag(model02a.Posterior)
 gelman.diag(model02a.Posterior, multivariate = FALSE)
-plot(model02a.Posterior[[1]][,1])
+# plot(model02a.Posterior)
 
 summary(model02a.Posterior)
+
+# posterior predictive check of model 2a =============================================================================================
+
+# let's look at the distribution of the covariances from this model, as compared to the (ML) data covariances and simulated ones
+
+# compute the quantiles of the chain covariances:
+dataCov = cov(conspiracy[paste0("PolConsp", 1:10)])
+chainCovs = mcmc.list(lapply(X = model02a.Posterior, FUN = function(x) return(x[,12:ncol(x)])))
+chainCovsS = summary(chainCovs)
+chainCovQ = cbind(chainCovsS$quantiles, chainCovsS$statistics, matrix(data = NA, nrow = nrow(chainCovsS$statistics), ncol = 2))
+row = 1
+for (i in 1:ncol(dataCov)){
+  for (j in 1:ncol(dataCov)){
+    chainCovQ[row, 10] = dataCov[i,j]
+    chainCovQ[row, 11] = chainCovQ[row, 6] - chainCovQ[row, 10]
+    row = row +1
+  }
+}
+colnames(chainCovQ)[10:11] = c("dataCov", "DifDataCovEAP")
+chainCovQ
+
+# comparison of model vs. chain covariance for all pairs of items
+plot(chainCovQ[, 6], chainCovQ[, 10], ylab = "dataCov", xlab = "modelCov")
+
+# now, let's compare this with the model-implied covariance matrix from model01b
+model02a.Posterior.all = do.call("rbind", chainCovs)
+plot(density(model02a.Posterior.all[,1]), ylim = c(0, max(density(model01bCov[,1])$y, density(model02a.Posterior.all[,1])$y)+ .1),
+     main = "Item 1 Variance")
+lines(density(model01bCov[,1]), col = 2, lty = 2)
+
+plot(density(model02a.Posterior.all[,2]), ylim = c(0, max(density(model01bCov[,2])$y, density(model02a.Posterior.all[,2])$y)+ .1),
+     main = "Item 1 and Item 2 Covariance")
+lines(density(model01bCov[,2]), col = 2, lty = 2)
+
+# we can also generate a posterior predictive distribution from this model as well:
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior value by disentangling chains
+model02a.Posterior.all2 = do.call("rbind", model02a.Posterior)
+
+# determine columns of posterior that go into each model matrix
+muCols = grep(x = colnames(model02a.Posterior.all2), pattern = "mu")
+sigmaCols = grep(x = colnames(model02a.Posterior.all2), pattern = "sigma")
+
+# save simulated correlations:
+simCorModel02a = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
+simCovModel02a = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model02a.Posterior.all2), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  mu = matrix(data = model02a.Posterior.all2[iternum, muCols], ncol = 1)
+  sigma = matrix(data = model02a.Posterior.all2[iternum, sigmaCols], ncol = 10, nrow = 10)
+  
+  # create model-implied mean and covariance matrix (marginal for X)
+  meanVec = mu
+  covMat = sigma
+  
+  # randomly draw data with same sample size from MVN with mean=meanVec and cov=covMat
+  simData = rmvnorm(n = nrow(conspiracy), mean = meanVec, sigma = covMat)
+  
+  # create sample statistics from simulated data (we'll use correlation matrix, starting with upper triangle)
+  simCorModel02a[sim,] = matrix(data = c(cor(simData)[upper.tri(cor(simData))]), nrow = 1)
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCovModel02a[sim,] = c(cov(simData))
+  # difCov = dataCov-simCov
+  # stdDifCov = sqrt(solve(diag(diag(dataCov)))) %*% difCov %*% sqrt(solve(diag(diag(dataCov))))
+  
+  # using formula from book:
+  # simSRMR[sim,1] = sum(colSums(stdDifCov*stdDifCov))/((ncol(simCov)*(ncol(simCov)-1))/2)
+  
+  # can also do a similar process for RMSEA (assuming covariance matrix is from ML estimation - discrepancy function)
+  # simRMSEA[sim,1] = sqrt((log(det(simCov)) - log(det(dataCov)) + sum(diag(dataCov %*% solve(simCov))) - nItems)/modelDF)
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+
+# next, let's see how the simulated covariances compare with the model implied ones (from Model02a only)
+
+# now, let's compare this with the model-implied covariance matrix from model01b
+plot(density(model02a.Posterior.all[,1]), ylim = c(0, max(density(simCovModel02a[,1])$y, density(model02a.Posterior.all[,1])$y) + .1),
+     main = "Item 1 Variance")
+lines(density(simCovModel02a[,1]), col = 2, lty = 2)
+
+plot(density(model02a.Posterior.all[,2]), ylim = c(0, max(density(simCovModel02a[,2])$y, density(model02a.Posterior.all[,2])$y)+ .1),
+     main = "Item 1 and Item 2 Covariance")
+lines(density(simCovModel02a[,2]), col = 2, lty = 2)
+
+# now comparing the simulated correlations between models 1b and 2a
+plot(density(simCovModel01b[,1]), ylim = c(0, max(density(simCovModel02a[,1])$y, density(simCovModel01b[,1])$y) + .1),
+     main = "Item 1 Variance")
+lines(density(simCovModel02a[,1]), col = 2, lty = 2)
+
+qqplot(y = simCovModel01b[,1], x = simCovModel02a[,1], main = "Q-Q plot of Item 1 and Item 2 Covariance", ylab = "Model01b", xlab = "model02a",
+       xlim = c(min(c(simCovModel01b[,1], simCovModel02a[,1])), max(c(simCovModel01b[,1], simCovModel02a[,1]))),
+       ylim = c(min(c(simCovModel01b[,1], simCovModel02a[,1])), max(c(simCovModel01b[,1], simCovModel02a[,1]))))
+lines(x = c(min(c(simCovModel01b[,1], simCovModel02a[,1])), max(c(simCovModel01b[,1], simCovModel02a[,1]))), 
+      y = c(min(c(simCovModel01b[,1], simCovModel02a[,1])), max(c(simCovModel01b[,1], simCovModel02a[,1]))))
+ks.test(simCovModel01b[,1], simCovModel02a[,1])
+
+
+plot(density(simCovModel01b[,2]), ylim = c(0, max(density(simCovModel02a[,2])$y, density(simCovModel01b[,2])$y)+ .1),
+     main = "Item 1 and Item 2 Covariance")
+lines(density(simCovModel02a[,2]), col = 2, lty = 2)
+qqplot(y = simCovModel01b[,2], x = simCovModel02a[,2], main = "Q-Q plot of Item 1 and Item 2 Covariance", ylab = "Model01b", xlab = "model02a",
+       xlim = c(min(c(simCovModel01b[,2], simCovModel02a[,2])), max(c(simCovModel01b[,2], simCovModel02a[,2]))),
+       ylim = c(min(c(simCovModel01b[,2], simCovModel02a[,2])), max(c(simCovModel01b[,2], simCovModel02a[,2]))))
+lines(x = c(min(c(simCovModel01b[,2], simCovModel02a[,2])), max(c(simCovModel01b[,2], simCovModel02a[,2]))), 
+      y = c(min(c(simCovModel01b[,2], simCovModel02a[,2])), max(c(simCovModel01b[,2], simCovModel02a[,2]))))
+ks.test(simCovModel01b[,2], simCovModel02a[,2])
+
 
 # Model Comparison -- can use DIC.samples to get DIC for both models ==================================================
 #     Warning: The dic.samples function of rjags takes an extremely long time to run for the saturated model. 
