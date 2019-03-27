@@ -89,7 +89,7 @@ model01a.data = list(
 )
 
 #, "xfactor") --- note, we'll leave out the factor scores for now. These will come back once we know the model works.
-model01a.parameters = c("mu", "lambda",  "psi", "deviance")
+model01a.parameters = c("mu", "lambda",  "psi", "deviance", "xfactor")
 
 
 # for reproducable seeds (without parallel JAGS)
@@ -135,6 +135,9 @@ for (item in 1:I){
 for (item in 1:I){
   psi[item] <- 1/inv.psi[item]
 }
+
+
+
 }
 "
 
@@ -247,6 +250,12 @@ for (item in 1:I){
   psi[item] <- 1/inv.psi[item]
 }
 }
+
+
+sumlambda <- sum(lambda[1:10])
+sumpsi <-  psi[1] + psi[2] + psi[3] + psi[4] + psi[5] + psi[6] + psi[7] + psi[8] + psi[9] + psi[10] 
+
+omega <-  (sumlambda*sumlambda*factor.variance)/((sumlambda*sumlambda*factor.variance) + sumpsi)
 "
 
 # next, create data for JAGS to use:
@@ -268,7 +277,7 @@ model01b.data = list(
 model01b.init.values = model01a.init.values
 
 #, "xfactor") --- note, we'll leave out the factor scores for now. These will come back once we know the model works.
-model01b.parameters = c("mu", "lambda",  "psi", "factor.variance", "deviance")
+model01b.parameters = c("omega", "mu", "lambda",  "psi", "factor.variance", "deviance", "xfactor")
 
 # load two JAGS modules: GLM (which makes the analysis go more efficiently) and DIC (which gives an index of relative fit)
 load.module("glm")
@@ -322,6 +331,9 @@ nSimulatedDataSets = 5000
 
 # create one large matrix of posterior value by disentangling chains
 model01b.Posterior.all = do.call("rbind", model01b.marker.Posterior)
+summary(mcmc(model01b.Posterior.all))
+plot(model01b.Posterior.all[,208], model01b.Posterior.all[,2])
+
 
 # determine columns of posterior that go into each model matrix
 muCols = grep(x = colnames(model01b.Posterior.all), pattern = "mu")
@@ -411,8 +423,8 @@ dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
 hist(simCor[,1])
 plot(density(simCor[,1]))
 lines(x = c(dataCor[1,2], dataCor[1,2]), y = c(0, 5), col = 2)
-quantile(simRMSEA[,1])
-mean(simRMSEA)
+quantile(simCor[,1])
+mean(simCor[,1])
 
 # create quantiles of correlations to see where each observed correlation falls
 corQuantiles = NULL
@@ -454,6 +466,24 @@ meanPrecision.0 = diag(nItems)*mean.precision.0
 # prior values for variances -- variances of observed data
 R.0 = (apply(X = conspiracy[paste0("PolConsp", 1:10)], MARGIN = 2, FUN = var) * diag(nItems))/nItems
 k.0 = nItems
+
+# looking at what an inverse wishart gives
+if (!require(MCMCpack)) install.packages("MCMCpack")
+library(MCMCpack)
+
+# generate random covariance matrices from inverse wishart
+nSims = 10000
+covSave = NULL
+corSave = NULL
+i = 1
+for (i in 1:nSims){
+  simCovMat = riwish(v = k.0, S = R.0)
+  covSave = rbind(covSave, c(simCovMat))
+  simCorMat =  solve(diag(diag(sqrt(simCovMat)))) %*% simCovMat %*% solve(diag(diag(sqrt(simCovMat))))
+  corSave = rbind(corSave, c(simCorMat))
+}
+
+hist(corSave[,3])
 
 # load data into list
 model02a.data = list(N = nrow(conspiracy),
@@ -550,9 +580,10 @@ plot(chainCovQ[, 6], chainCovQ[, 10], ylab = "dataCov", xlab = "modelCov")
 
 # now, let's compare this with the model-implied covariance matrix from model01b
 model02a.Posterior.all = do.call("rbind", chainCovs)
-plot(density(model02a.Posterior.all[,1]), ylim = c(0, max(density(model01bCov[,1])$y, density(model02a.Posterior.all[,1])$y)+ .1),
+colnames(model02a.Posterior.all)
+plot(density(model02a.Posterior.all[,100]), ylim = c(0, max(density(model01bCov[,1])$y, density(model02a.Posterior.all[,1])$y)+ .1),
      main = "Item 1 Variance")
-lines(density(model01bCov[,1]), col = 2, lty = 2)
+lines(density(model01bCov[,100]), col = 2, lty = 2)
 
 plot(density(model02a.Posterior.all[,2]), ylim = c(0, max(density(model01bCov[,2])$y, density(model02a.Posterior.all[,2])$y)+ .1),
      main = "Item 1 and Item 2 Covariance")

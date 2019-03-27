@@ -1,0 +1,62 @@
+---
+title: "Reliability Estimation"
+author: "Bayesian Psychometric Models, Lecture 10"
+output: html_document
+---
+
+
+# 1. Introduction
+
+Estimation of reliability in latent variable models can be somewhat complicated, especially in a Bayesian setting. This example develops reliability estimates that can be used with various modeling paradigms, although it consists of a Confirmatory Factor Analysis-driven example (at least in its initial draft form).
+
+# 2. Reliability Precursor: Model Fit
+
+A precursor to reliability estimation, however, is that a given model fits the data. Although reliablity can be calculated for any model, regardless of model fit, if the model for the score does not fit the data, the reliablity is likely to be overestimated, often by a considerable margin. To ensure an example data set has good fit, we will begin with simulated data where we know the data-generating model in order to ensure we have good model-data fit.
+
+To show we have good model-data fit, we will estimate a single-factor model with these data and then construct a posterior predictive model check to compare the model-based correlations with that of the correlations in the data
+
+# 3. Calculation of reliability
+
+## Reliability for Sum Scores
+
+The reliability formula for sum scores, sometimes referred to as omega, comes from the following derrivation:
+
+Recall the single factor model being:
+
+$$ X_{ri} = \mu_i + \lambda_i F_r + e_{ri}$$
+with $F_r \sim N\left(\mu_F, \sigma^2_F \right)$ and $e_{ri} \sim N\left(0, \psi^2_i \right)$, with all $e$ independent. Here, we will set $\mu_F$ to zero along with setting one $\lambda_i$ to one, allowing us to estimate $\sigma^2_F$. 
+
+A sum score is simply:
+
+$$ Y_{ri} = \sum_{i=1}^{I}{X_{ri}} = \sum_{i=1}^{I}{\left(\mu_i + \lambda_i F_r + e_{ri}\right)} $$
+
+Distributing the sum we have:
+
+$$ \sum_{i=1}^{I}{\mu_i} + \sum_{i=1}^{I}{\lambda_i} F_r + \sum_{i=1}^{I}{e_{ri}}$$
+The first two terms could be considered the "true score" and the last could be considered the "error"
+
+As such, we will need to calculate the variance of true score and the variance of error, using the expectation formed by the variance:
+
+$$\sigma^2_T = Var\left(\sum_{i=1}^{I}{\mu_i} + \sum_{i=1}^{I}{\lambda_i} F_r \right) = \left(\sum_{i=1}^{I}{\lambda_i} \right)^2 Var \left(F_r\right) =\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F$$ 
+
+The variance of error is found by taking the same function across the "error" part of the sum score:
+
+$$\sigma^2_E = Var\left(\sum_{i=1}^{I}{e_{ri}}\right) = \sum_{i=1}^{I}{Var\left(e_{ri}\right)} = \sum_{i=1}^{I}{Var\left(\psi^2_{i}\right)}$$
+
+Then, the reliability for sum scores becomes:
+
+$$ \omega = \rho_{sumscore} = \frac{\sigma^2_T}{\sigma^2_E} = \frac{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F}{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F + \sum_{i=1}^{I}{Var\left(\psi^2_{i}\right)}}$$
+
+## Reliability for factor scores
+
+Calculation of the reliability for factor scores is a bit more complicated. Again, we need to compute the two quantities $\sigma^2_T$ and $\sigma^2_E$. Here, the variance of ``true'' score is given by the variance of the factor (as the factor is the true score).
+
+$$\sigma^2_T = \sigma^2_F$$
+
+More difficult is the variance of error $\sigma^2_E$. Here, we have to compute the variance of the posterior distribution of factor scores, which can be derrived by using the model likelihood and prior distributions. Under the prior we set for the factor scores, we can show that
+
+$$\sigma^2_E = \left(\frac{1}{\sigma^2_F} + \sum_{i=1}^{I}\frac{\lambda^2_i}{\psi^2_i} \right)^{-1} $$
+
+(see p. 200 of Levy and Mislevy, 2016 for the matrix version of this formula).
+
+

@@ -1,7 +1,7 @@
 ---
 title: 'Homework #3'
 author: "Bayesian Psychometric Models"
-date: "Due Date: March 15, 2019 (15 points total)"
+date: "Due Date: April 12, 2019 (15 points total)"
 output: html_document
 ---
 
