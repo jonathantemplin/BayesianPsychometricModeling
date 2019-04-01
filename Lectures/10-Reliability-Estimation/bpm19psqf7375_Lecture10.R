@@ -11,13 +11,13 @@ for(i in 1:length(needed_packages)){
 set.seed = 1071
 # 
 nItems = 3
-nObs = 1000
+nObs = 100
 # 
 # simulating data from a one-factor CFA model 
 Mu = runif(n = nItems, min = 1, max = 3)
-Lambda = matrix(data = runif(n = nItems, min = .5, max = 1.5), nrow = nItems, ncol = 1)
+Lambda = matrix(data = runif(n = nItems, min = .5, max = 1), nrow = nItems, ncol = 1)
 Phi = matrix(data = 1, nrow = 1, ncol = 1)
-Psi = diag(runif(n = nItems, min = 0, max =1))
+Psi = diag(runif(n = nItems, min = 0.75, max =1))
 
 data = rmvnorm(n = nObs, mean = Mu, sigma = Lambda %*% Phi %*% t(Lambda) + Psi)
 
@@ -89,7 +89,7 @@ model{
   }
   
   # reliability for sum scores:
-  sumReliability <- sum(lambda[])*sum(lambda[]) / (sum(lambda[])*sum(lambda[]) + sum(psi[]))
+  sumReliability <- sum(lambda[])*sum(lambda[])*factor.variance / (sum(lambda[])*sum(lambda[])*factor.variance + sum(psi[]))
 
   # reliability for factor scores:
   posteriorFactorVariance <- 1 / (factor.variance + sum(itemValue[]))
@@ -131,7 +131,7 @@ for (i in 1:nchains) {
 
 
 model01.parameters = c("mu", "lambda",  "psi", "factor.variance", "deviance", 
-                       "posteriorFactorVariance", "factorReliability", "omega")
+                       "posteriorFactorVariance", "factorReliability", "sumReliability")
 
 # load two JAGS modules: GLM (which makes the analysis go more efficiently) and DIC (which gives an index of relative fit)
 load.module("glm")

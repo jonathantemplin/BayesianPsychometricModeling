@@ -7,6 +7,9 @@ library(rjags)
 if (!require(mvtnorm)) install.packages("mvtnorm")
 library(mvtnorm)
 
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+
 # Import/Examine Data =================================================================================================
 # Today's example is from a bootstrap resample of 177 undergradutes at a large state university in the midwest. The 
 # survey was a measure of 10 questions about their beliefs in various conspiracy theories that were being passed around 
@@ -252,10 +255,6 @@ for (item in 1:I){
 }
 
 
-sumlambda <- sum(lambda[1:10])
-sumpsi <-  psi[1] + psi[2] + psi[3] + psi[4] + psi[5] + psi[6] + psi[7] + psi[8] + psi[9] + psi[10] 
-
-omega <-  (sumlambda*sumlambda*factor.variance)/((sumlambda*sumlambda*factor.variance) + sumpsi)
 "
 
 # next, create data for JAGS to use:
@@ -843,6 +842,9 @@ model03a.function = function(){
     xfactor[person, 1:2] ~ dmnorm(kappa, inv.phi[,])
   }
   
+  # prior distribution for the factor covariance matrix
+  inv.phi ~ dwish(factor.invcov.0, factor.invcov.df.0)
+  
   # fix factor means
   for (factor in 1:2){
     kappa[factor] <- 0
@@ -861,16 +863,12 @@ model03a.function = function(){
   lambda[6,1] ~ dnorm(lambda.mean.0, lambda.precision.0)
   lambda[10,1] ~ dnorm(lambda.mean.0, lambda.precision.0)
   lambda[2,2] <- 1
-  lambda[5,2] ~ dnorm(lambda.mean.0, .1)
-  lambda[7,2] ~ dnorm(lambda.mean.0, .1)
-  lambda[8,2] ~ dnorm(lambda.mean.0, .1)
-  lambda[9,2] ~ dnorm(lambda.mean.0, .1)
-  
-  # prior distribution for the factor covariance matrix
-  inv.phi ~ dwish(factor.invcov.0, factor.invcov.df.0)
+  lambda[5,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+  lambda[7,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+  lambda[8,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+  lambda[9,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
   
   # saved parameters
-
   for (item in 1:I){
     psi[item] <- 1/inv.psi[item]
   }
@@ -912,7 +910,144 @@ model03a.r2jags =  jags(
 )
 model03a.r2jags
 
+dim(model03a.r2jags$BUGSoutput$sims.matrix)
+colnames(model03a.r2jags$BUGSoutput$sims.matrix)
 # examining the factor scores 
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior value by disentangling chains
+model03a.Posterior.all = model03a.r2jags$BUGSoutput$sims.matrix
+
+
+# determine columns of posterior that go into each model matrix
+muCols =grep(x = colnames(model03a.Posterior.all), pattern = "mu")
+colnames(model03a.r2jags$BUGSoutput$sims.matrix)[muCols]
+lambdaCols = grep(x = colnames(model03a.Posterior.all), pattern = "lambda")
+colnames(model03a.r2jags$BUGSoutput$sims.matrix)[lambdaCols]
+psiCols = grep(x = colnames(model03a.Posterior.all), pattern = "psi")
+colnames(model03a.r2jags$BUGSoutput$sims.matrix)[psiCols]
+phiCols = grep(x = colnames(model03a.Posterior.all), pattern = "phi")
+colnames(model03a.r2jags$BUGSoutput$sims.matrix)[phiCols]
+
+# save simulated correlations:
+simCor = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
+simCovModel03a = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+simSRMR = matrix(data = NA, nrow = nSimulatedDataSets, ncol = 1)
+simRMSEA = matrix(data = NA, nrow = nSimulatedDataSets, ncol = 1)
+
+# save model-based covariances:
+model03aCov = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# model DF
+modelDF = (nItems*(nItems+1)/2) - 20
+
+dataCov = cov(conspiracy[paste0("PolConsp", 1:10)])
+detDataCov = det(dataCov)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model03a.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  mu = matrix(data = model03a.Posterior.all[iternum, muCols], ncol = 1)
+  psi = diag(model03a.Posterior.all[iternum, psiCols])
+  phi = matrix(model03a.Posterior.all[iternum, phiCols], nrow = 2, ncol = 2)
+  
+  lambda = matrix(data = 0, ncol = 2, nrow = 10)
+  lambda[1,1] = model03a.Posterior.all[iternum, lambdaCols[1]]
+  lambda[3,1] = model03a.Posterior.all[iternum, lambdaCols[2]]
+  lambda[4,1] = model03a.Posterior.all[iternum, lambdaCols[3]]
+  lambda[6,1] = model03a.Posterior.all[iternum, lambdaCols[4]]
+  lambda[10,1] = model03a.Posterior.all[iternum, lambdaCols[5]]
+  lambda[2,2] = model03a.Posterior.all[iternum, lambdaCols[6]]
+  lambda[5,2] = model03a.Posterior.all[iternum, lambdaCols[7]]
+  lambda[7,2] = model03a.Posterior.all[iternum, lambdaCols[8]]
+  lambda[8,2] = model03a.Posterior.all[iternum, lambdaCols[9]]
+  lambda[9,2] = model03a.Posterior.all[iternum, lambdaCols[10]]
+  
+  
+  # create model-implied mean and covariance matrix (marginal for X)
+  meanVec = mu
+  covMat = lambda %*% phi %*% t(lambda) + psi
+  model03aCov[sim, ] = c(covMat)
+  
+  # randomly draw data with same sample size from MVN with mean=meanVec and cov=covMat
+  simData = rmvnorm(n = nrow(conspiracy), mean = meanVec, sigma = covMat)
+  
+  # create sample statistics from simulated data (we'll use correlation matrix, starting with upper triangle)
+  simCor[sim,] = matrix(data = c(cor(simData)[upper.tri(cor(simData))]), nrow = 1)
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel03a[sim,] = c(cov(simData))
+  difCov = dataCov-simCov
+  stdDifCov = sqrt(solve(diag(diag(dataCov)))) %*% difCov %*% sqrt(solve(diag(diag(dataCov))))
+  
+  # using formula from book:
+  simSRMR[sim,1] = sum(colSums(stdDifCov*stdDifCov))/((ncol(simCov)*(ncol(simCov)-1))/2)
+  
+  # can also do a similar process for RMSEA (assuming covariance matrix is from ML estimation - discrepancy function)
+  simRMSEA[sim,1] = sqrt((log(det(simCov)) - log(det(dataCov)) + sum(diag(dataCov %*% solve(simCov))) - nItems)/modelDF)
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# first, we examine the posterior predictive distribution of SRMR (p. 241)
+hist(simSRMR[,1])
+plot(density(simSRMR))
+quantile(simSRMR)
+mean(simSRMR)
+
+# next we can examine the posterior predictive distribution of RMSEA
+hist(simRMSEA[,1])
+plot(density(simRMSEA))
+quantile(simRMSEA)
+mean(simRMSEA)
+
+# label values of simCor to ensure we have the right comparison
+corNames = NULL
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    corNames = c(corNames, paste0("cor", i, "." , j))
+  }
+}
+colnames(simCor) = corNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
+hist(simCor[,1])
+plot(density(simCor[,1]))
+lines(x = c(dataCor[1,2], dataCor[1,2]), y = c(0, 5), col = 2)
+quantile(simCor[,1])
+mean(simCor[,1])
+
+# create quantiles of correlations to see where each observed correlation falls
+corQuantiles = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    corEcdf = ecdf(simCor[,col])
+    corQuantiles = rbind(corQuantiles, c(i, j, summary(corEcdf), dataCor[i,j], corEcdf(dataCor[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(corQuantiles)[1:2] = c("Item 1", "Item 2")
+colnames(corQuantiles)[9:10] = c("ObsCor", "CorPctile")
+corQuantiles[which(corQuantiles[,10] > .975 | corQuantiles[,10] < .025),]
+
+
 
 # Making It Easier ?: blavaan package ===================================================================================
 if (!require(blavaan)) install.packages("blavaan")
@@ -925,6 +1060,8 @@ onefactor.blavaan.syntax = "
   factor ~~ factor
 "
 
-onefactor.blavaan.analysis = bcfa(onefactor.blavaan.syntax, data = conspiracy)
+onefactor.blavaan.analysis = bcfa(onefactor.blavaan.syntax, data = conspiracy, inits = "Mplus")
 summary(onefactor.blavaan.analysis) 
-
+library(lavaan)
+test = cfa(model = onefactor.blavaan.syntax, data = conspiracy)
+summary(test)

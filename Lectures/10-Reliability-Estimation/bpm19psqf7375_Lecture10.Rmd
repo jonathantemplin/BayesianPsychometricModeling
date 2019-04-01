@@ -41,11 +41,11 @@ $$\sigma^2_T = Var\left(\sum_{i=1}^{I}{\mu_i} + \sum_{i=1}^{I}{\lambda_i} F_r \r
 
 The variance of error is found by taking the same function across the "error" part of the sum score:
 
-$$\sigma^2_E = Var\left(\sum_{i=1}^{I}{e_{ri}}\right) = \sum_{i=1}^{I}{Var\left(e_{ri}\right)} = \sum_{i=1}^{I}{Var\left(\psi^2_{i}\right)}$$
+$$\sigma^2_E = Var\left(\sum_{i=1}^{I}{e_{ri}}\right) = \sum_{i=1}^{I}{Var\left(e_{ri}\right)} = \sum_{i=1}^{I}{\psi^2_{i}}$$
 
 Then, the reliability for sum scores becomes:
 
-$$ \omega = \rho_{sumscore} = \frac{\sigma^2_T}{\sigma^2_E} = \frac{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F}{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F + \sum_{i=1}^{I}{Var\left(\psi^2_{i}\right)}}$$
+$$ \omega = \rho_{sumscore} = \frac{\sigma^2_T}{\sigma^2_T + \sigma^2_E} = \frac{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F}{\left(\sum_{i=1}^{I}{\lambda_i} \right)^2 \sigma^2_F + \sum_{i=1}^{I}{\psi^2_{i}}}$$
 
 ## Reliability for factor scores
 
@@ -55,7 +55,7 @@ $$\sigma^2_T = \sigma^2_F$$
 
 More difficult is the variance of error $\sigma^2_E$. Here, we have to compute the variance of the posterior distribution of factor scores, which can be derrived by using the model likelihood and prior distributions. Under the prior we set for the factor scores, we can show that
 
-$$\sigma^2_E = \left(\frac{1}{\sigma^2_F} + \sum_{i=1}^{I}\frac{\lambda^2_i}{\psi^2_i} \right)^{-1} $$
+$$\sigma^2_Y = \left(\frac{1}{\sigma^2_F} + \sum_{i=1}^{I}\frac{\lambda^2_i}{\psi^2_i} \right)^{-1} $$
 
 (see p. 200 of Levy and Mislevy, 2016 for the matrix version of this formula).
 
