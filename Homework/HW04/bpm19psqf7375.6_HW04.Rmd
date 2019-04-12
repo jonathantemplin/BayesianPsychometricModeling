@@ -1,0 +1,62 @@
+---
+title: 'Homework #4'
+author: "Bayesian Psychometric Models"
+date: "Due Date: April 26, 2019 (15 points total)"
+output: html_document
+---
+
+This homework consists of two problems, with point totals varying by problem. Please submit your homework as an R Markdown file named FirstName_LastName.Rmd with answers to the questions clearly labeled. 
+
+## A. Bayesian Item Response Theory Article Review (3 points)
+
+1. Find a published article in an empirical journal (that is, not a statistics/data science journal; ask if you have questions) that reports the results of a Bayesian analysis using an item resposne model. **Be sure to provide the article pdf as part of your submission.**
+2.  Write a description of the analyses conducted: the model(s) used, the priors chosen (and the justification for those choices), any model comparison methods used, any information you believe to be missing, and any other information relevant to the analysis.
+3.  Write a 300-500 word evaluation of the methods used in the article. In your own words, describe if you believe the conclusions of the article were supported by the methods. Imagine you are a reviewer of this journal article, selected due to your methodological expertise and experience with Bayesian methods.
+
+## B. Bayesian Item Response Model Analysis and Writeup (12 points)
+
+This question of the homework assignment uses the ECPE data as described in Templin and Hoffman (2013). A sample of 2922 students learning English as a second language used took the Examination for the Certification of Proficiency in English, at the time administered by the University of Michigan. The scale consisted of 28 cloze items (sentences missing words) and was purported to measure up to three skills (skill1: Morphosyntactic rules, skill2: Cohesive rules, skill3: Lexical rules). The data were put into the CDM R package (without permission). Please answer the following questions about these data:
+
+0. Create a replicate sample (with replacement) of the 282 original data points using your 8-digit Iowa ID number as the random number seed the following syntax:
+```{r sample}
+
+if (!require(CDM)) install.packages("CDM")
+library(CDM)
+
+IowaID = 12345678
+set.seed(12345678)
+
+data("data.ecpe")
+
+# read in original data
+HW04DataImport = data.ecpe$data
+
+# create a sample from the data file:
+HW04DataObs = sample(x = 1:nrow(HW04DataImport), size = nrow(HW04DataImport), replace = TRUE)
+
+# create a new data frame using only that sample: -- Use this data frame in all analyses
+HW04Data = HW04DataImport[HW04DataObs,]
+
+# the q-matrix for the data is:
+data.ecpe$q.matrix
+
+```
+
+1. Construct a Bayesian Item Response Theory Analysis Model in JAGS to evaluate the model fit of the three-factor model to the data.
+    - Use the multivariate three-parameter logistic model for your analysis
+    - Evaluate bivariate model fit using posterior predictive model check for each covariance
+2. Estimate a unidimensional three-parameter logistic model
+    - Using the DIC, compare the model fit between the three-factor model and the one-factor model 
+3. Write a 500-1000 word Results section where you report the results of your analysis, written to be published in a technical manual documenting the analysis process underlying the scale. Include the following in your section:
+    - Model description (what does the model do, in words)
+    - Choice and motivation for prior distribution selection
+    - Choice and motivation for algorithm specifics (e.g., number of chains, number of iterations)
+    - Algorithm convergence diagnostic statistics
+    - Information about which items may need to be dropped
+    - Any other information you feel relevant to provide evidence for your conclusions
+
+## Homework Revisions:
+
+In order to be eligible for revisions to this homework, you must have provided a complete attempt to each question in the homework. Information about homework revisions will be distributed with the graded homework.
+
+
