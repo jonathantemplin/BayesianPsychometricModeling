@@ -1,0 +1,930 @@
+---
+title: 'Lecture 11: Binary IRT Models'
+author: "Bayesian Psychometric Modeling"
+output: html_document
+---
+
+```{r setup}
+# Install/Load Packages ===============================================================================================
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+
+if (!require(CDM)) install.packages("CDM")
+library(CDM)
+
+if (!require(MASS)) install.packages("MASS")
+library(MASS)
+FSdata = fraction.subtraction.data
+FSQmatrix = fraction.subtraction.qmatrix
+
+```
+
+## Item Response Models for Binary Data: Example Analyses
+
+We will use the Tatsuoka (1984) fraction subtraction data for today's examples. See DeCarlo (2011, p. 9) for the items: https://scholar.google.com/scholar?hl=en&as_sdt=0%2C36&q=l+decarlo+2011&btnG=.
+
+First, we will treat these data as unidimensional to demonstrate unidimensional IRT models. We can use the syntax from the unidimensional CFA model as a start for modeling the 2PL model.This uses slope/intercept form, which we will change to discrimination/difficulty later. Also, we will use R2jags to make quick use of DIC for model comparisons. 
+
+**Also note: these analyses take an excessive amount of time to run. So, please follow along with the HTML file through class.**
+
+### Model 1: Unidimensional 2PNO Model
+
+```{r model1specs}
+# model 1 specs:
+nItems = ncol(FSdata)
+```
+
+```{r model1syntax}
+# marker item:
+model01.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        X[person, item] ~ dbern(phi(mu[item] + lambda[item]*theta[person]))
+      }
+    }
+
+  # prior distribution for the factor variance
+    theta.precision ~ dgamma(theta.alpha.0, theta.beta.0)
+
+  # saved parameters
+    theta.variance <- 1/theta.precision
+    
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, theta.precision)
+      thetaS[person] <- theta[person]/theta.variance
+    }
+
+  # prior distributions for the measurement model mean/precision parameters
+    for (item in 1:I){
+      mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
+    }
+
+  # prior distributions for the loadings (except the first loading, which is fixed to 1.0)
+    lambda[1] <- 1
+    for (item in 2:I){
+      lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    }
+    
+  # create standardized lambda
+    lambdaS <- theta.variance*lambda
+    
+}
+
+```
+
+```{r model1data}
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+mu.mean.0 = 0
+mu.variance.0 = 100
+mu.precision.0 = 1 / mu.variance.0
+
+#   Factor loadings -- these are the discriminations
+lambda.mean.0 = 0
+lambda.variance.0 = 100
+lambda.precision.0 = 1 / lambda.variance.0
+
+# unique variances -- these do not exist
+
+# values for prior for factor variance (based on variance of marker item)
+theta.df.0 = 1
+theta.var.0 = 1
+theta.alpha.0 = theta.df.0/2
+theta.beta.0 = (theta.df.0*theta.var.0)/2
+
+
+# next, create data for JAGS to use:
+model01.data = list(
+  N = nrow(FSdata),
+  X = FSdata,
+  I = nItems,
+  mu.mean.0 = mu.mean.0,
+  mu.precision.0 = mu.precision.0,
+  lambda.mean.0 = lambda.mean.0,
+  lambda.precision.0 = lambda.precision.0,
+  theta.alpha.0 = theta.alpha.0,
+  theta.beta.0 = theta.beta.0
+)
+
+model01.parameters = c("mu", "lambda",  "theta.variance", "theta", "thetaS", "lambdaS", "b")
+
+```
+
+```{r model1seed}
+# for reproducable analyses
+model01.seed = 06042019
+```
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model1r2jags, cache=TRUE}
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  n.cluster = 4, 
+  jags.seed = model01.seed
+)
+model01.r2jags
+
+# printing only certain parameters
+summary(mcmc(model01.r2jags$BUGSoutput$sims.matrix[,grep(x = colnames(model01.r2jags$BUGSoutput$sims.matrix), pattern = "lambda")]))
+summary(mcmc(model01.r2jags$BUGSoutput$sims.matrix[,grep(x = colnames(model01.r2jags$BUGSoutput$sims.matrix), pattern = "mu")]))
+summary(mcmc(model01.r2jags$BUGSoutput$sims.matrix[,grep(x = colnames(model01.r2jags$BUGSoutput$sims.matrix), pattern = "theta.variance")]))
+```
+
+Now, let's look at model fit. We will have to use a slightly different version of the syntax from before:
+
+```{r model1fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model01.Posterior.all = model01.r2jags$BUGSoutput$sims.matrix
+dim(model01.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+# colnames(model01.Posterior.all)
+muCols = grep(x = colnames(model01.Posterior.all), pattern = "mu")
+lambdaCols = grep(x = colnames(model01.Posterior.all), pattern = "lambda\\[")
+varCol = grep(x = colnames(model01.Posterior.all), pattern = "theta.variance")
+
+# save simulated covariances:
+simCovModel01 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model01.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  mu = matrix(data = model01.Posterior.all[iternum, muCols], ncol = 1)
+  lambda = matrix(data = model01.Posterior.all[iternum, lambdaCols], ncol = 1)
+  varTheta = model01.Posterior.all[iternum, varCol]
+  
+  # generate sample of thetas from theta distribution
+  theta = matrix(data = rnorm(n = nrow(FSdata), mean = 0, sd = sqrt(varTheta)), nrow = nrow(FSdata), ncol = 1)
+  
+  # calculate predicted probits:
+  probits = matrix(data = 1, nrow = nrow(FSdata), ncol = 1) %*% t(mu) + theta %*% t(lambda)
+  
+  simData = probits
+  i=1
+  for (i in 1:ncol(probits)){
+    simData[,i] = rbinom(n = nrow(probits), size = 1, prob = pnorm(q = probits[,i]) )
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel01[sim,] = c(cov(simData))
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+covNames = NULL
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    covNames = c(covNames, paste0("cov", i, "." , j))
+  }
+}
+colnames(simCovModel01) = covNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCov = cov(FSdata)
+hist(simCovModel01[,1])
+plot(density(simCovModel01[,1]))
+lines(x = c(dataCov[1,1], dataCov[1,1]), y = c(0, max(density(simCovModel01[,1])$y)), col = 2)
+quantile(simCovModel01[,1])
+mean(simCovModel01[,1])
+dataCov[1,1]
+
+# create quantiles of correlations to see where each observed correlation falls
+covQuantiles01 = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    covEcdf = ecdf(simCovModel01[,col])
+    covQuantiles01 = rbind(covQuantiles01, c(i, j, summary(covEcdf), dataCov[i,j], covEcdf(dataCov[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(covQuantiles01)[1:2] = c("Item 1", "Item 2")
+colnames(covQuantiles01)[9:10] = c("ObsCor", "CorPctile")
+covQuantiles01[which(covQuantiles01[,10] > .975 | covQuantiles01[,10] < .025),]
+
+```
+
+### Creating Standardized Estimates
+
+Our previous example used a standardized mean/marker item variance scale identification technique. We will see with multivariate IRT models, this will be a common method of identification. But, we can convert these results to one where the theta variance is set to one with a bit of math:
+
+First, the kernel of the model must be the same after standardization. That is, $\mu_i + \lambda_i \theta_p = \mu_i^S + \lambda_i^S \theta_i^S$ -- meaning that item response probabilities are invariant after transformation. As $\theta_p$ has mean $0$ and variance $\sigma^2_\theta$, to standardize it, we can divide by $\sigma_\theta$:
+
+$$\theta_p^S = \frac{\theta_p}{\sigma_\theta}$$
+
+Now, $\theta_p^S$ has variance $1$. To make the item response probabilities correspond, we must transform $\lambda_i$ similarly. We can do so by taking:
+
+$$\lambda^S = \sigma_\theta \lambda_p$$
+
+As this term cancels the variance transformation for $\theta_p$, we are left with:
+
+$$\mu_i^S = \mu_i$$
+
+In the model syntax above, you can see how this is computed for `lambdaS` and `thetaS`.
+
+### Transforming from Slope/Intercept to Discrimination/Difficulty
+
+The IRT model core $a_i\left(\theta_p - b_i \right)$ can be reparameterized as
+
+$$\mu_i + \lambda_i \theta_i,$$
+
+Which comes from multiplying $a_i$ through $\left(\theta_p - b_i \right)$:
+
+$$a_i\left(\theta_p - b_i \right) = -a_ib_i + a_i\theta_i = \mu_i + \lambda_i\theta_i$$
+
+Where,
+
+- $\lambda_i = a_i$ 
+- $\mu_i = -a_ib_i$, leading to $b_i = -\frac{\mu_i}{a_i} = -\frac{\mu_i}{\lambda_i}$
+
+Finally, we can transform our standardized parameters to values are in the Discrimination/Difficulty parameterization (which often uses standardized $\theta_p$). To do this, all we need to create is the difficulty parameter as the discrimination parameter is equal to the standardized loading. This is not in the model syntax as JAGS has an issue with running this code. So, we can do this with the posterior distribution:
+
+```{r model1bvalues}
+muCols = grep(x = colnames(model01.Posterior.all), pattern = "mu")
+lambdaCols = grep(x = colnames(model01.Posterior.all), pattern = "lambda\\[")
+varCol = grep(x = colnames(model01.Posterior.all), pattern = "theta.variance")
+
+b = matrix(data = NA, nrow = nrow(model01.Posterior.all), ncol = nItems)
+
+for (rep in 1:nrow(model01.Posterior.all)){
+  mu = matrix(data = model01.Posterior.all[rep, muCols], ncol = 1)
+  lambda = matrix(data = model01.Posterior.all[rep, lambdaCols], ncol = 1)
+  varTheta = model01.Posterior.all[rep, varCol]
+  for (item in 1:nItems){
+    b[rep,item] = -1*mu[item]/(lambda[item]*varTheta)
+  }  
+}
+
+summary(mcmc(b))
+```
+
+
+Of note, one can always convert one model parameterization to the other. Depending on prior selection, it is not guaranteed that the posterior distributions will be identical. Model 2 shows this same analysis in discrimination/difficulty form with a standardized factor variance:
+
+## Model 2: 2PNO/Standardized Theta/Discrimination/Difficulty Parameterization
+
+```{r model2syntax}
+# marker item:
+model02.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        X[person, item] ~ dbern(phi(a[item]*(theta[person]-b[item])))
+      }
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model parameters
+    for (item in 1:I){
+      a[item] ~ dlnorm(a.mean.0, a.precision.0)
+      b[item] ~ dnorm(b.mean.0, b.precision.0)
+      mu[item] <- -1*a[item]*b[item]
+    }
+
+}
+
+```
+
+```{r model2data}
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+a.mean.0 = 0
+a.variance.0 = 100
+a.precision.0 = 1 / a.variance.0
+
+#   Factor loadings -- these are the discriminations
+b.mean.0 = 0
+b.variance.0 = 100
+b.precision.0 = 1 / b.variance.0
+
+# next, create data for JAGS to use:
+model02.data = list(
+  N = nrow(FSdata),
+  X = FSdata,
+  I = nItems,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0,
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0
+)
+
+model02.parameters = c("mu", "a", "theta", "b")
+
+```
+
+```{r model2seed}
+# for reproducable analyses
+model02.seed = 06042019+1
+```
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model2r2jags, cache=TRUE}
+model02.r2jags =  jags.parallel(
+  data = model02.data,
+  parameters.to.save = model02.parameters,
+  model.file = model02.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  n.cluster = 4, 
+  jags.seed = model02.seed
+)
+model02.r2jags
+
+```
+
+As Model 2 has a different posterior distribution than Model 1 (even only slightly), Model 2 needs its own goodness of fit statistics:
+
+```{r model2fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model02.Posterior.all = model02.r2jags$BUGSoutput$sims.matrix
+dim(model02.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+
+aCols = 1:20
+bCols = grep(x = colnames(model02.Posterior.all), pattern = "b\\[")
+
+# save simulated covariances:
+simCovModel02 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model02.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  a = matrix(data = model02.Posterior.all[iternum, aCols], ncol = 1)
+  b = matrix(data = model02.Posterior.all[iternum, bCols], ncol = 1)
+  mu = -1*a*b
+  
+  # generate sample of thetas from theta distribution
+  theta = matrix(data = rnorm(n = nrow(FSdata), mean = 0, sd = 1), nrow = nrow(FSdata), ncol = 1)
+  
+  # calculate predicted probits:
+  probits = matrix(data = 1, nrow = nrow(FSdata), ncol = 1) %*% t(mu) + theta %*% t(a)
+  
+  simData = probits
+  i=1
+  for (i in 1:ncol(probits)){
+    simData[,i] = rbinom(n = nrow(probits), size = 1, prob = pnorm(q = probits[,i]) )
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel02[sim,] = c(cov(simData))
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+covNames = NULL
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    covNames = c(covNames, paste0("cov", i, "." , j))
+  }
+}
+colnames(simCovModel02) = covNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCov = cov(FSdata)
+hist(simCovModel02[,2])
+plot(density(simCovModel02[,1]))
+lines(x = c(dataCov[1,1], dataCov[1,1]), y = c(0, max(density(simCovModel02[,1])$y)), col = 2)
+quantile(simCovModel02[,1])
+mean(simCovModel02[,1])
+dataCov[1,1]
+
+# create quantiles of correlations to see where each observed correlation falls
+covQuantiles02 = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    covEcdf = ecdf(simCovModel02[,col])
+    covQuantiles02 = rbind(covQuantiles02, c(i, j, summary(covEcdf), dataCov[i,j], covEcdf(dataCov[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(covQuantiles02)[1:2] = c("Item 1", "Item 2")
+colnames(covQuantiles02)[9:10] = c("ObsCor", "CorPctile")
+covQuantiles02[which(covQuantiles02[,10] > .975 | covQuantiles02[,10] < .025),]
+```
+
+
+### Estimation of the 3PNO Model
+
+We can now estimate a 3PNO model to compare model fit with that of the 2PNO:
+
+```{r model3syntax}
+# marker item:
+model03.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        X[person, item] ~ dbern(c[item]+(1-c[item])*phi(a[item]*(theta[person]-b[item])))
+      }
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model parameters
+    for (item in 1:I){
+      a[item] ~ dlnorm(a.mean.0, a.precision.0)
+      b[item] ~ dnorm(b.mean.0, b.precision.0)
+      c[item] ~ dbeta(c.a.0, c.b.0)
+    }
+
+}
+
+```
+
+```{r model3data}
+
+# specification of prior values for measurement model parameters:
+a.mean.0 = 0
+a.variance.0 = 100
+a.precision.0 = 1 / a.variance.0
+
+b.mean.0 = 0
+b.variance.0 = 100
+b.precision.0 = 1 / b.variance.0
+
+c.a.0 = 1
+c.b.0 = 1
+
+# next, create data for JAGS to use:
+model03.data = list(
+  N = nrow(FSdata),
+  X = FSdata,
+  I = nItems,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0,
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0,
+  c.a.0 = c.a.0,
+  c.b.0 = c.b.0
+)
+
+model03.parameters = c("a", "theta", "b", "c")
+
+```
+
+```{r model3seed}
+# for reproducable analyses
+model03.seed = 06042019+3
+```
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model3r2jags, cache=TRUE}
+model03.r2jags =  jags.parallel(
+  data = model03.data,
+  parameters.to.save = model03.parameters,
+  model.file = model03.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  n.cluster = 4, 
+  jags.seed = model03.seed
+)
+model03.r2jags
+
+```
+
+As Model 3 is very different from Models 1 and 2, we need still more goodness of fit checking:
+
+```{r model3fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model03.Posterior.all = model03.r2jags$BUGSoutput$sims.matrix
+dim(model03.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+
+aCols = 1:20
+bCols = grep(x = colnames(model03.Posterior.all), pattern = "b\\[")
+cCols = grep(x = colnames(model03.Posterior.all), pattern = "c\\[")
+
+# save simulated covariances:
+simCovModel03 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model03.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  a = matrix(data = model03.Posterior.all[iternum, aCols], ncol = 1)
+  b = matrix(data = model03.Posterior.all[iternum, bCols], ncol = 1)
+  c = matrix(data = model03.Posterior.all[iternum, cCols], ncol = 1)
+  mu = -1*a*b
+  
+  # generate sample of thetas from theta distribution
+  theta = matrix(data = rnorm(n = nrow(FSdata), mean = 0, sd = 1), nrow = nrow(FSdata), ncol = 1)
+  
+  # calculate predicted probits:
+  probits = matrix(data = 1, nrow = nrow(FSdata), ncol = 1) %*% t(mu) + theta %*% t(a)
+  
+  simData = probits
+  i=1
+  for (i in 1:ncol(probits)){
+    probits[,i] =c[i]+(1-c[i])* pnorm(probits[,i])
+    simData[,i] = rbinom(n = nrow(probits), size = 1, prob = probits )
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel03[sim,] = c(cov(simData))
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+covNames = NULL
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    covNames = c(covNames, paste0("cov", i, "." , j))
+  }
+}
+colnames(simCovModel03) = covNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCov = cov(FSdata)
+hist(simCovModel03[,1])
+plot(density(simCovModel03[,1]))
+lines(x = c(dataCov[1,1], dataCov[1,1]), y = c(0, max(density(simCovModel03[,1])$y)), col = 2)
+quantile(simCovModel03[,1])
+mean(simCovModel03[,1])
+dataCov[1,1]
+
+# create quantiles of correlations to see where each observed correlation falls
+covQuantiles03 = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    covEcdf = ecdf(simCovModel03[,col])
+    covQuantiles03 = rbind(covQuantiles03, c(i, j, summary(covEcdf), dataCov[i,j], covEcdf(dataCov[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(covQuantiles03)[1:2] = c("Item 1", "Item 2")
+colnames(covQuantiles03)[9:10] = c("ObsCor", "CorPctile")
+covQuantiles03[which(covQuantiles03[,10] > .975 | covQuantiles03[,10] < .025),]
+```
+
+## Multidimensional IRT
+
+The example from this class can be expanded to a confirmatory multidimensional IRT model. These items were from an assessment that purported to measure multiple dimensions, which are denoted in the FSQmatrix object:
+
+```{r qmatrix}
+FSQmatrix
+```
+
+We will code this into the example and attempt to estimate an eight-dimensional MIRT model. Here, we will use the slope/intercept form as this will allow us to use an inverse wishart distribution for the covariance matrix of the factors (thetas). Here, the loading for the first item for each factor will be set to one to identify the theta variance.
+
+```{r model4syntax}
+# marker item:
+model04.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      
+        
+      X[person, 1] ~ dbern(phi(mu[1] + lambda[1,4]*theta[person,4] + lambda[1,6]*theta[person,6] +
+                               lambda[1,7]*theta[person,7]))
+      X[person, 2] ~ dbern(phi(mu[2] + lambda[2,4]*theta[person,4] + lambda[2,7]*theta[person,7]))
+      X[person, 3] ~ dbern(phi(mu[3] + lambda[3,4]*theta[person,4] + lambda[3,7]*theta[person,7]))
+      X[person, 4] ~ dbern(phi(mu[4] + lambda[4,2]*theta[person,2] + lambda[4,3]*theta[person,3] + 
+                               lambda[4,5]*theta[person,5] + lambda[4,7]*theta[person,7]))
+      X[person, 5] ~ dbern(phi(mu[5] + lambda[5,2]*theta[person,2] + lambda[5,4]*theta[person,4] + 
+                               lambda[5,7]*theta[person,7] + lambda[5,8]*theta[person,8]))
+      X[person, 6] ~ dbern(phi(mu[6] + lambda[6,7]*theta[person,7]))
+      X[person, 7] ~ dbern(phi(mu[7] + lambda[7,1]*theta[person,1] + lambda[7,2]*theta[person,2] + 
+                               lambda[7,7]*theta[person,7]))
+      X[person, 8] ~ dbern(phi(mu[8] + lambda[8,7]*theta[person,7]))
+      X[person, 9] ~ dbern(phi(mu[9] + lambda[9,2]*theta[person,2]))
+      X[person,10] ~ dbern(phi(mu[10] + lambda[10,2]*theta[person,2] + lambda[10,5]*theta[person,5] + 
+                               lambda[10,7]*theta[person,7] + lambda[10,8]*theta[person,8]))
+      X[person,11] ~ dbern(phi(mu[11] + lambda[11,2]*theta[person,2] + lambda[11,5]*theta[person,5] + 
+                               lambda[11,7]*theta[person,7]))
+      X[person,12] ~ dbern(phi(mu[12] + lambda[12,7]*theta[person,7] + lambda[12,8]*theta[person,8]))
+      X[person,13] ~ dbern(phi(mu[13] + lambda[13,2]*theta[person,2] + lambda[13,4]*theta[person,4] + 
+                               lambda[13,5]*theta[person,5] + lambda[13,7]*theta[person,7]))
+      X[person,14] ~ dbern(phi(mu[14] + lambda[14,2]*theta[person,2] + lambda[14,7]*theta[person,7]))
+      X[person,15] ~ dbern(phi(mu[15] + lambda[15,1]*theta[person,1] + lambda[15,7]*theta[person,7]))
+      X[person,16] ~ dbern(phi(mu[16] + lambda[16,2]*theta[person,2] + lambda[16,7]*theta[person,7]))
+      X[person,17] ~ dbern(phi(mu[17] + lambda[17,2]*theta[person,2] + lambda[17,5]*theta[person,5] + 
+                               lambda[17,7]*theta[person,7]))
+      X[person,18] ~ dbern(phi(mu[18] + lambda[18,2]*theta[person,2] + lambda[18,5]*theta[person,5] + 
+                               lambda[18,6]*theta[person,6] + lambda[18,7]*theta[person,7]))
+      X[person,19] ~ dbern(phi(mu[19] + lambda[19,1]*theta[person,1] + lambda[19,2]*theta[person,2] + 
+                               lambda[19,3]*theta[person,3] + lambda[19,5]*theta[person,5] +
+                               lambda[19,7]*theta[person,7]))
+      X[person,20] ~ dbern(phi(mu[20] + lambda[20,2]*theta[person,2] + lambda[20,3]*theta[person,3] + 
+                               lambda[20,5]*theta[person,5] + lambda[20,7]*theta[person,7]))
+    }
+  
+  # prior distributions for the factor:
+  for (person in 1:N){
+    theta[person, 1:8] ~ dmnorm(kappa[1:8], inv.phi[1:8,1:8])
+  }
+  
+  
+  # prior distribution for the factor covariance matrix
+  inv.phi[1:8,1:8] ~ dwish(theta.invcov.0[1:8,1:8], theta.invcov.df.0)
+  theta.cov[1:8,1:8] <- inverse(inv.phi[1:8,1:8])
+  
+  # fix factor means
+  for (theta in 1:8){
+    kappa[theta] <- 0
+  }
+  
+  # theta.cov <- inverse(inv.phi)
+  
+  # prior distributions for the measurement model mean/precision parameters
+  for (item in 1:I){
+    mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
+  }
+
+  # prior distributions for the loadings (except the first loading, which is fixed to 1.0)
+    lambda[1,4] <- 1
+    lambda[1,6] <- 1
+    lambda[1,7] <- 1
+    lambda[2,4] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[2,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[3,4] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[3,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[4,2] <- 1
+    lambda[4,3] <- 1
+    lambda[4,5] <- 1
+    lambda[4,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[5,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[5,4] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[5,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[5,8] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[6,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[7,1] <- 1
+    lambda[7,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[7,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[8,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[9,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[10,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[10,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[10,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[10,8] <- 1
+    lambda[11,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[11,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[11,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[12,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[12,8] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[13,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[13,4] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[13,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[13,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[14,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[14,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[15,1] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[15,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[16,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[16,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[17,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[17,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[17,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[18,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[18,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[18,6] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[18,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[19,1] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[19,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[19,3] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[19,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[19,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[20,2] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[20,3] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[20,5] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    lambda[20,7] ~ dnorm(lambda.mean.0, lambda.precision.0)
+    
+}
+
+```
+
+```{r model4data}
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+mu.mean.0 = 0
+mu.variance.0 = 1
+mu.precision.0 = 1 / mu.variance.0
+
+#   Factor loadings -- these are the discriminations
+lambda.mean.0 = 0
+lambda.variance.0 = 1
+lambda.precision.0 = 1 / lambda.variance.0
+
+# values for prior for factor variance (based on variance of marker item)
+theta.cov.0 = diag(8)
+theta.invcov.0 = solve(theta.cov.0)
+theta.invcov.df.0 = 10
+
+# next, create data for JAGS to use:
+model04.data = list(
+  N = nrow(FSdata),
+  X = FSdata,
+  I = ncol(FSdata),
+  mu.mean.0 = mu.mean.0,
+  mu.precision.0 = mu.precision.0,
+  lambda.mean.0 = lambda.mean.0,
+  lambda.precision.0 = lambda.precision.0,
+  theta.invcov.0 = theta.invcov.0,
+  theta.invcov.df.0 = theta.invcov.df.0
+)
+
+model04.parameters = c("mu", "lambda",  "theta.cov", "theta")
+
+```
+
+```{r model4seed}
+# for reproducable analyses
+model04.seed = 06042019+4
+```
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model4r2jags, cache=TRUE}
+model04.r2jags =  jags.parallel(
+  data = model04.data,
+  parameters.to.save = model04.parameters,
+  model.file = model04.function, 
+  n.chains = 4,
+  n.iter = 10000,
+  n.thin = 5,
+  n.burnin = 5000,
+  n.cluster = 4, 
+  jags.seed = model04.seed
+)
+model04.r2jags
+```
+Up next are posterior predictive model checks for Model 4:
+
+
+```{r model4fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model04.Posterior.all = model04.r2jags$BUGSoutput$sims.matrix
+dim(model04.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+# colnames(model01.Posterior.all)
+muCols = grep(x = colnames(model04.Posterior.all), pattern = "mu")
+lambdaCols = grep(x = colnames(model04.Posterior.all), pattern = "lambda\\[")
+lambdaText = colnames(model04.Posterior.all)[lambdaCols]
+lambdaCall = paste(lambdaText, "= lambdaVec[", 1:56, "]")
+lambda = matrix(data = 0, nrow = 20, ncol = 8)
+covCol = grep(x = colnames(model04.Posterior.all), pattern = "theta.cov")
+
+
+# save simulated covariances:
+simCovModel04 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model04.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+# get parameters for that sample: put into factor model matrices for easier generation of data
+  mu = matrix(data = model04.Posterior.all[iternum, muCols], ncol = 1)
+  lambdaVec = model04.Posterior.all[iternum, lambdaCols]
+  eval(parse(text = lambdaCall))
+  varTheta = matrix(data = model04.Posterior.all[iternum, covCol], nrow = 8, ncol = 8)
+  
+  # generate sample of thetas from theta distribution
+  theta = rmvnorm(n = nrow(FSdata), mean = rep(0,8), sigma = varTheta)
+  
+  # calculate predicted probits:
+  probits = matrix(data = 1, nrow = nrow(FSdata), ncol = 1) %*% t(mu) + theta %*% t(lambda)
+  
+  simData = probits
+  i=1
+  for (i in 1:ncol(probits)){
+    simData[,i] = rbinom(n = nrow(probits), size = 1, prob = pnorm(q = probits[,i]) )
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel04[sim,] = c(cov(simData))
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+covNames = NULL
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    covNames = c(covNames, paste0("cov", i, "." , j))
+  }
+}
+colnames(simCovModel04) = covNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCov = cov(FSdata)
+hist(simCovModel04[,1])
+plot(density(simCovModel04[,1]))
+lines(x = c(dataCov[1,1], dataCov[1,1]), y = c(0, max(density(simCovModel04[,1])$y)), col = 2)
+quantile(simCovModel04[,1])
+mean(simCovModel04[,1])
+dataCov[1,1]
+
+# create quantiles of correlations to see where each observed correlation falls
+covQuantiles04 = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    covEcdf = ecdf(simCovModel04[,col])
+    covQuantiles04 = rbind(covQuantiles04, c(i, j, summary(covEcdf), dataCov[i,j], covEcdf(dataCov[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(covQuantiles04)[1:2] = c("Item 1", "Item 2")
+colnames(covQuantiles04)[9:10] = c("ObsCor", "CorPctile")
+covQuantiles04[which(covQuantiles04[,10] > .975 | covQuantiles04[,10] < .025),]
+```
