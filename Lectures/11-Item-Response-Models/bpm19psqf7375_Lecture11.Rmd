@@ -69,7 +69,7 @@ model01.function = function(){
     }
     
   # create standardized lambda
-    lambdaS <- theta.variance*lambda
+    lambdaS <- sqrt(theta.variance)*lambda
     
 }
 
@@ -280,7 +280,7 @@ for (rep in 1:nrow(model01.Posterior.all)){
   lambda = matrix(data = model01.Posterior.all[rep, lambdaCols], ncol = 1)
   varTheta = model01.Posterior.all[rep, varCol]
   for (item in 1:nItems){
-    b[rep,item] = -1*mu[item]/(lambda[item]*varTheta)
+    b[rep,item] = -1*mu[item]/(lambda[item]*sqrt(varTheta))
   }  
 }
 

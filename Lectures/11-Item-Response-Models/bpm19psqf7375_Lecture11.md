@@ -10,7 +10,7 @@ Today's Class
 Estimating Common Binary Item Response Models with MCMC
 - Comparisons to CFA
 - Model Parameterizations
-- Unidimensional and Multidimensional Models
+- Unidimensional and Multidimensional Models 
 
 Unidimensional IRT Models for Binary Data
 ========================================================
@@ -68,7 +68,7 @@ $$\frac{\exp\left(a_i\left(\theta_p - b_i \right) \right)}{1+ \exp\left(a_i\left
 $$\Phi^{-1}\left( a_i\left(\theta_p - b_i \right)\right)$$
 
 where 
-$$\Phi^{-1}\left(z \right) = \int_{-\infty}^z \frac{1}{\sqrt{2\pi}}\exp\left(\frac{-x^2}{2} \right) dz$$
+$$\Phi^{-1}\left(z \right) = \int_{-\infty}^z \frac{1}{\sqrt{2\pi}}\exp\left(\frac{-x^2}{2} \right) dx$$
 
 
 Additional Parameterizations: Slope/Intercept Core
