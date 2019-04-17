@@ -1,0 +1,716 @@
+---
+title: 'Lecture 12: Polytomous IRT Models'
+author: "Bayesian Psychometric Modeling"
+output: html_document
+---
+
+```{r setup}
+# Install/Load Packages ===============================================================================================
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+
+if (!require(mvtnorm)) install.packages("mvtnorm")
+library(mvtnorm)
+```
+
+## Item Response Models for Polytomous Data: Example Analyses
+
+Today's example is from a bootstrap resample of 177 undergradutes at a large state university in the midwest. The survey was a measure of 10 questions about their beliefs in various conspiracy theories that were being passed around the internet in the early 2010s. Additionally, gender was included in the survey. 
+
+All items responses were on a 5-point Likert scale where: 
+
+- 1 = Strongly Disagree 
+- 2 = Disagree
+- 3 = Neither Agree or Disagree
+- 4 = Agree
+- 5 = Strongly Agree
+
+__Questions:__
+
+1. The U.S. invasion of Iraq was not part of a campaign to fight terrorism, but was driven by oil companies and Jews in the U.S. and Israel.
+2. Certain U.S. government officials planned the attacks of September 11, 2001 because they wanted the United States to go to war in the Middle East.
+3. President Barack Obama was not really born in the United States and does not have an authentic Hawaiian birth certificate.
+4. The current financial crisis was secretly orchestrated by a small group of Wall Street bankers to extend the power of the Federal Reserve and further their control of the world's economy.
+5. Vapor trails left by aircraft are actually chemical agents deliberately sprayed in a clandestine program directed by government officials.
+6. Billionaire George Soros is behind a hidden plot to destabilize the American government, take control of the media, and put the world under his control.
+7. The U.S. government is mandating the switch to compact fluorescent light bulbs because such lights make people more obedient and easier to control.
+8. Government officials are covertly Building a 12-lane \"NAFTA superhighway\" that runs from Mexico to Canada through America's heartland.
+9. Government officials purposely developed and spread drugs like crack-cocaine and diseases like AIDS in order to destroy the African American community.
+10. God sent Hurricane Katrina to punish America for its sins.
+
+**Also note: these analyses take an excessive amount of time to run. So, please follow along with the HTML file through class.**
+
+```{r dataimport}
+
+# read in data:
+conspiracy = read.csv("conspiracies.csv")
+
+par(mfrow = c(2,3))
+# plot each item
+hist(conspiracy$PolConsp1, main = "PolConsp1", xlab = "1. The U.S. invasion of Iraq was not part of a campaign to fight terrorism, but was driven by oil companies and Jews in the U.S. and Israel.")
+hist(conspiracy$PolConsp2, main = "PolConsp2", xlab = "2. Certain U.S. government officials planned the attacks of September 11, 2001 because they wanted the United States to go to war in the Middle East.")
+hist(conspiracy$PolConsp3, main = "PolConsp3", xlab = "3. President Barack Obama was not really born in the United States and does not have an authentic Hawaiian birth certificate.")
+hist(conspiracy$PolConsp4, main = "PolConsp4", xlab = "4. The current financial crisis was secretly orchestrated by a small group of Wall Street bankers to extend the power of the Federal Reserve and further their control of the world's economy.")
+hist(conspiracy$PolConsp5, main = "PolConsp5", xlab = "5. Vapor trails left by aircraft are actually chemical agents deliberately sprayed in a clandestine program directed by government officials.")
+hist(conspiracy$PolConsp6, main = "PolConsp6", xlab = "6. Billionaire George Soros is behind a hidden plot to destabilize the American government, take control of the media, and put the world under his control.")
+hist(conspiracy$PolConsp7, main = "PolConsp7", xlab = "7. The U.S. government is mandating the switch to compact fluorescent light bulbs because such lights make people more obedient and easier to control.")
+hist(conspiracy$PolConsp8, main = "PolConsp8", xlab = "8. Government officials are covertly Building a 12-lane \"NAFTA superhighway\" that runs from Mexico to Canada through America's heartland.")
+hist(conspiracy$PolConsp9, main = "PolConsp9", xlab = "9. Government officials purposely developed and spread drugs like crack-cocaine and diseases like AIDS in order to destroy the African American community.")
+hist(conspiracy$PolConsp10, main = "PolConsp10", xlab = "10. God sent Hurricane Katrina to punish America for its sins.")
+
+```
+
+## Model 0: Unidimensional Confirmatory Factor Analysis Model (Lecture 9)
+
+```{r model0syntax}
+model00.function = function(){
+  # measurement model specification
+  for (person in 1:N){
+    for (item in 1:I){
+      mean[person, item] = mu[item] + lambda[item]*xfactor[person]
+      X[person, item] ~ dnorm(mean[person,item], inv.psi[item])    
+    }
+  }
+  
+  # prior distributions for the factor:
+  for (person in 1:N){
+    xfactor[person] ~ dnorm(0, 1)
+  }
+  
+  # prior distributions for the measurement model mean/precision parameters
+  for (item in 1:I){
+    mu[item] ~ dnorm(mu.mean.0, mu.precision.0)
+    inv.psi[item] ~ dgamma(psi.alpha.0, psi.beta.0[item])
+  }
+  
+  # prior distributions for the loadings
+  for (item in 1:I){
+    lambda[item] ~ dnorm(lambda.mean.0, lambda.precision.0); T(0,)
+  }    
+  
+  for (item in 1:I){
+    psi[item] <- 1/inv.psi[item]
+  }
+  
+}
+```
+
+```{r model0data}
+
+# model specs:
+nItems = ncol(conspiracy[paste0("PolConsp", 1:10)])
+
+# specification of prior values for measurement model parameters:
+#   item means
+mu.mean.0 = 3
+mu.variance.0 = 1000
+mu.precision.0 = 1 / mu.variance.0
+
+#   Factor loadings
+lambda.mean.0 = 0
+lambda.variance.0 = 1000
+lambda.precision.0 = 1 / lambda.variance.0
+
+# unique variances
+psi.df.0 = 1
+psi.var.0 = apply(X = conspiracy[paste0("PolConsp", 1:10)], MARGIN = 2, FUN = var)
+psi.alpha.0 = psi.df.0 / 2
+psi.beta.0 = (psi.df.0 * psi.var.0) / 2
+
+model00.data = list(
+  N = nrow(conspiracy),
+  X = conspiracy[paste0("PolConsp", 1:10)],
+  I = nItems,
+  mu.mean.0 = mu.mean.0,
+  mu.precision.0 = mu.precision.0,
+  lambda.mean.0 = lambda.mean.0,
+  lambda.precision.0 = lambda.precision.0,
+  psi.alpha.0 = psi.alpha.0,
+  psi.beta.0 = psi.beta.0
+)
+
+model00.parameters = c("mu", "lambda",  "psi", "deviance", "xfactor")
+
+model00.seed = 23022019
+
+```
+
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model0r2jags, cache=TRUE}
+
+model00.r2jags =  jags.parallel(
+  data = model00.data,
+  parameters.to.save = model00.parameters,
+  model.file = model00.function,
+  n.chains = 4,
+  n.iter = 5000,
+  n.thin = 1,
+  n.burnin = 3000,
+  jags.seed = model00.seed
+)
+
+model00.r2jags
+
+```
+
+Convergence looks good. Let's look at model fit using a posterior predictive model check:
+
+```{r model01fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior value by disentangling chains
+model00.Posterior.all = model00.r2jags$BUGSoutput$sims.matrix
+
+# determine columns of posterior that go into each model matrix
+muCols = grep(x = colnames(model00.Posterior.all), pattern = "mu")
+lambdaCols = grep(x = colnames(model00.Posterior.all), pattern = "lambda")
+psiCols = grep(x = colnames(model00.Posterior.all), pattern = "psi")
+
+# save simulated correlations:
+simCorModel00 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model00.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  mu = matrix(data = model00.Posterior.all[iternum, muCols], ncol = 1)
+  lambda = matrix(data = model00.Posterior.all[iternum, lambdaCols], ncol = 1)
+  psi = diag(model00.Posterior.all[iternum, psiCols])
+  
+  # create model-implied mean and covariance matrix (marginal for X)
+  meanVec = mu
+  covMat = lambda %*% t(lambda) + psi
+    
+  # randomly draw data with same sample size from MVN with mean=meanVec and cov=covMat
+  simData = rmvnorm(n = nrow(conspiracy), mean = meanVec, sigma = covMat)
+  
+  # create sample statistics from simulated data (we'll use correlation matrix, starting with upper triangle)
+  simCorModel00[sim,] = matrix(data = c(cor(simData)[upper.tri(cor(simData))]), nrow = 1)
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+corNames = NULL
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    corNames = c(corNames, paste0("cor", i, "." , j))
+  }
+}
+colnames(simCorModel00) = corNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
+hist(simCorModel00[,1])
+plot(density(simCorModel00[,1]))
+lines(x = c(dataCor[1,2], dataCor[1,2]), y = c(0, max(density(simCorModel00[,1])$y)), col = 2)
+quantile(simCorModel00[,1])
+mean(simCorModel00[,1])
+dataCor[1,2]
+
+# create quantiles of correlations to see where each observed correlation falls
+corQuantiles00 = NULL
+
+# compute the quantiles of the observed correlations:
+col = 1
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    corEcdf = ecdf(simCorModel00[,col])
+    corQuantiles00 = rbind(corQuantiles00, c(i, j, summary(corEcdf), dataCor[i,j], corEcdf(dataCor[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(corQuantiles00)[1:2] = c("Item 1", "Item 2")
+colnames(corQuantiles00)[9:10] = c("ObsCor", "CorPctile")
+corQuantiles00[which(corQuantiles00[,10] > .975 | corQuantiles00[,10] < .025),]
+
+```
+
+### Model 1: Unidimensional Graded Response Model with Normal Ogive
+
+```{r model1syntax}
+
+# marker item:
+model01.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        
+        # form cumulative probability item response functions
+        CProb[person, item, 1] <- 1
+        for (cat in 2:C[item]){
+          CProb[person, item, cat] <- phi(a[item]*(theta[person]-b[item, (cat-1)]))  
+        }
+        
+        # form probability response is equal to each category
+        for (cat in 1:(C[item] - 1)){
+          Prob[person, item, cat] <- CProb[person, item, cat] - CProb[person, item, cat+1]
+        }
+        Prob[person, item, C[item]] <- CProb[person, item, C[item]]
+
+        X[person, item] ~ dcat(Prob[person, item, 1:C[item]])
+      }
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model mean/precision parameters
+    for (item in 1:I){
+      
+      # create parameters that are unbounded, then sort
+      for (cat in 1:(C[item]-1)){
+        b.star[item, cat] ~ dnorm(b.mean.0, b.precision.0)  
+      }
+      b[item, 1:(C[item]-1)] <- sort(b.star[item, 1:(C[item]-1)])
+      
+      # loadings are set to be all positive
+      a[item] ~ dnorm(a.mean.0, a.precision.0);T(0,)
+      
+    }
+    
+}
+
+
+
+```
+
+
+
+```{r model1data}
+
+nItems = 10
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+b.mean.0 = 0
+b.variance.0 = 100
+b.precision.0 = 1 / b.variance.0
+
+#   Factor loadings -- these are the discriminations
+a.mean.0 = 0
+a.variance.0 = 100
+a.precision.0 = 1 / a.variance.0
+
+# next, create data for JAGS to use:
+model01.data = list(
+  N = nrow(conspiracy),
+  X = conspiracy,
+  C = unlist(apply(X = conspiracy[,1:10], MARGIN = 2, FUN = max)),
+  I = 10,
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0
+)
+
+model01.init = function(){
+  list("a" = runif(10, 1, 2),
+       "b.star" = cbind(rep(1, 10), rep(0, 10), rep(-1, 10), rep(-2, 10)))
+}
+
+model01.parameters = c("a", "b",  "theta")
+
+model01.seed = 16042019
+```
+
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model1r2jags, cache=TRUE}
+
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  inits = model01.init,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 5000,
+  n.thin = 1,
+  n.burnin = 3000,
+  jags.seed = model01.seed
+)
+
+model01.r2jags
+
+```
+
+
+Now, let's look at model fit. We will have to use a slightly different version of the syntax from before:
+
+
+```{r model1fit}
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model01.Posterior.all = model01.r2jags$BUGSoutput$sims.matrix
+dim(model01.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+# colnames(model01.Posterior.all)
+aCols = 1:10
+bCols = grep(x = colnames(model01.Posterior.all), pattern = "b")
+
+# save simulated correlations:
+simCorModel01 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*(nItems-1)/2)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model01.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  a = matrix(data = model01.Posterior.all[iternum, aCols], ncol = 1)
+  b = matrix(data = model01.Posterior.all[iternum, bCols], ncol = 4)
+  
+  # generate sample of thetas from theta distribution
+  theta = matrix(data = rnorm(n = nrow(conspiracy), mean = 0, sd = 1), nrow = nrow(conspiracy), ncol = 1)
+  
+  # calculate cumulative probits:
+  CProb = array(data = 1, dim = c(nrow(conspiracy), 10, 5))
+  Prob = array(data = 0, dim = c(nrow(conspiracy), 10, 5))
+  
+  item=1
+  for (item in 1:10){
+    for (cat in 2:5){
+      CProb[,item, cat] = matrix(pnorm(a[item]*(theta-b[item,cat-1])))
+    }
+  }
+  
+  
+  # calculate probits
+  cat = 1
+  for (cat in 1:4){
+    Prob[,,cat] = CProb[,,cat] - CProb[,,cat+1]
+  }
+  Prob[,,5] = CProb[,,5]  
+  CProb[1,1,1:5]
+  
+  simData = matrix(data = NA, nrow = nrow(conspiracy), ncol = 10)
+  item = 1
+  for (item in 1:10){
+    for (person in 1:nrow(conspiracy)){
+      simData[person, item] = sample(x = 1:5, size = 1, prob = Prob[person, item, 1:5])  
+    }
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCorModel01[sim,] = matrix(data = c(cor(simData)[upper.tri(cor(simData))]), nrow = 1)
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+corNames = NULL
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    corNames = c(corNames, paste0("cor", i, "." , j))
+  }
+}
+colnames(simCorModel01) = corNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCor = cor(conspiracy[paste0("PolConsp", 1:10)])
+hist(simCorModel01[,1])
+plot(density(simCorModel01[,1]))
+lines(x = c(dataCor[1,2], dataCor[1,2]), y = c(0, max(density(simCorModel01[,1])$y)), col = 2)
+quantile(simCorModel01[,1])
+mean(simCorModel01[,1])
+dataCor[1,2]
+
+# create quantiles of correlations to see where each observed correlation falls
+corQuantiles01 = NULL
+
+# compute the quantiles of the observed correlations:
+col = 1
+for (i in 1:(ncol(simData)-1)){
+  for (j in (i+1):ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    corEcdf = ecdf(simCorModel01[,col])
+    corQuantiles01 = rbind(corQuantiles01, c(i, j, summary(corEcdf), dataCor[i,j], corEcdf(dataCor[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(corQuantiles01)[1:2] = c("Item 1", "Item 2")
+colnames(corQuantiles01)[9:10] = c("ObsCor", "CorPctile")
+corQuantiles01[which(corQuantiles01[,10] > .975 | corQuantiles01[,10] < .025),]
+
+```
+
+### Comparing Model 0 (CFA) with Model 1 (IRT)
+
+We can look at our results to see if there is a big difference in model fit or values of parameters:
+
+```{r mod01fitcomp}
+
+par(mfrow = c(1,2))
+# comparing results for model fit:
+plot(x=corQuantiles01[,6], y=corQuantiles00[,6], xlab = "IRT Mean PP Cor", ylab = "CFA Mean PP Cor", ylim = c(.35,.80), xlim=c(.35,.8))
+lines(c(.35,.8), c(.35,.8))
+plot(x=corQuantiles01[,10], y=corQuantiles00[,10], xlab = "IRT Obs Cor %ile", ylab = "CFA Obs Cor %ile")
+lines(c(0,1), c(0,1))
+
+
+```
+
+Now, let's look at how the latent trait estimates compared:
+
+```{r mod01latentcomp}
+
+ThetaCols00 = grep(x = colnames(model00.Posterior.all), pattern = "xfactor")
+meanTheta00 = apply(X = model00.Posterior.all[,ThetaCols00], MARGIN = 2, FUN = mean)
+sdTheta00 = apply(X = model00.Posterior.all[,ThetaCols00], MARGIN = 2, FUN = sd)
+
+ThetaCols01 = grep(x = colnames(model01.Posterior.all), pattern = "theta")
+meanTheta01 = apply(X = model01.Posterior.all[,ThetaCols01], MARGIN = 2, FUN = mean)
+sdTheta01 = apply(X = model01.Posterior.all[,ThetaCols01], MARGIN = 2, FUN = sd)
+
+par(mfrow = c(1,2))
+# comparing results for model fit:
+plot(x=meanTheta01, y=meanTheta00, xlab = "IRT EAP Theta", ylab = "CFA EAP Factor", ylim = c(-1.3, 3.1), xlim = c(-1.3, 3.1))
+lines(c(-1.3, 3.1),c(-1.3, 3.1))
+plot(x=sdTheta01, y=sdTheta00, xlab = "IRT Posterior SD Theta", ylab = "CFA Posterior SD Factor", ylim = c(.15, .7), xlim = c(.15, .7))
+lines(c(.15, .7),c(.15, .7))
+
+par(mfrow = c(1,1))
+plot(density(model00.Posterior.all[, which(colnames(model00.Posterior.all) ==names(which.max(sdTheta00)))]), main=names(which.max(sdTheta00)))
+conspiracy[76,]
+
+```
+
+### Model 2: Unidimensional Generalized Partial Model
+
+```{r model2syntax}
+
+# marker item:
+model02.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        
+        for (cat in 1:C[I]){
+          eta[person, item, cat] <- a[item] * (theta[person] - b[item, cat])
+          psum[person, item, cat] <- sum(eta[person, item, 1:cat])
+          exp.psum[person, item, cat] <- exp(psum[person, item, cat])
+          prob[person, item, cat] <- exp.psum[person, item, cat]/sum(exp.psum[person, item, 1:C[item]])
+        }
+
+        X[person, item] ~ dcat(prob[person, item, 1:C[item]])
+      }
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model mean/precision parameters
+    for (item in 1:I){
+      
+      b[item, 1] <- 0
+      
+      # create parameters that are unbounded, then sort
+      for (cat in 2:C[item]){
+        b[item, cat] ~ dnorm(b.mean.0, b.precision.0)  
+      }
+      
+      # loadings are set to be all positive
+      a[item] ~ dnorm(a.mean.0, a.precision.0);T(0,)
+      
+    }
+    
+}
+
+
+
+```
+
+
+
+```{r model2data}
+
+nItems = 10
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+b.mean.0 = 0
+b.variance.0 = 100
+b.precision.0 = 1 / b.variance.0
+
+#   Factor loadings -- these are the discriminations
+a.mean.0 = 0
+a.variance.0 = 100
+a.precision.0 = 1 / a.variance.0
+
+# next, create data for JAGS to use:
+model02.data = list(
+  N = nrow(conspiracy),
+  X = conspiracy,
+  C = unlist(apply(X = conspiracy[,1:10], MARGIN = 2, FUN = max)),
+  I = 10,
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0
+)
+
+model02.init = function(){
+  list("a" = runif(10, 1, 2),
+       "b" = cbind(rep(NA, 10), rep(1, 10), rep(0, 10), rep(-1, 10), rep(-2, 10)))
+}
+
+model02.parameters = c("a", "b",  "theta")
+
+model02.seed = 16042019 + 1
+```
+
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model02r2jags, cache=TRUE}
+
+model02.r2jags =  jags.parallel(
+  data = model02.data,
+  inits = model02.init,
+  parameters.to.save = model02.parameters,
+  model.file = model02.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  jags.seed = model02.seed
+)
+
+model02.r2jags
+
+```
+
+It appears the GPCM model fits slightly better than the GRM for these data. We won't do the posterior predictive model check on this one as it will likely fit just as well.
+
+## Model 3: Nominal Response Model
+
+
+```{r model3syntax}
+
+# marker item:
+model03.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      for (item in 1:I){
+        
+        for (cat in 1:C[I]){
+          cnum[person, item, cat] <- exp(a[item, cat] * (theta[person] - b[item, cat]))
+          prob[person, item, cat] <- cnum[person, item, cat]/sum(cnum[person, item, 1:C[item]])
+        }
+
+        X[person, item] ~ dcat(prob[person, item, 1:C[item]])
+      }
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model mean/precision parameters
+    for (item in 1:I){
+      
+      # create parameters that are unbounded, then sort
+      for (cat in 1:(C[item]-1)){
+        b[item, cat] ~ dnorm(b.mean.0, b.precision.0)  
+        a[item, cat] ~ dnorm(a.mean.0, a.precision.0)
+      }
+      b[item, C[item]] <- sum(b[item, 1:(C[item] - 1)])
+      a[item, C[item]] <- sum(a[item, 1:(C[item] - 1)])
+      
+    }
+    
+}
+
+
+
+```
+
+
+
+```{r model3data}
+
+nItems = 10
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+b.mean.0 = 0
+b.variance.0 = 1
+b.precision.0 = 1 / b.variance.0
+
+#   Factor loadings -- these are the discriminations
+a.mean.0 = 0
+a.variance.0 = 1
+a.precision.0 = 1 / a.variance.0
+
+# next, create data for JAGS to use:
+model03.data = list(
+  N = nrow(conspiracy),
+  X = conspiracy,
+  C = unlist(apply(X = conspiracy[,1:10], MARGIN = 2, FUN = max)),
+  I = 10,
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0
+)
+
+model03.init = function(){
+  list("a" = cbind(runif(10), runif(10), runif(10), runif(10), rep(NA, 10)),
+       "b" = cbind(runif(10), runif(10), runif(10), runif(10), rep(NA, 10)))
+}
+
+model03.parameters = c("a", "b",  "theta")
+
+model03.seed = 16042019 + 2
+```
+
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model03r2jags, cache=TRUE}
+
+model03.r2jags =  jags.parallel(
+  data = model03.data,
+  inits = model03.init,
+  parameters.to.save = model03.parameters,
+  model.file = model03.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  jags.seed = model03.seed
+)
+
+model03.r2jags
+
+```

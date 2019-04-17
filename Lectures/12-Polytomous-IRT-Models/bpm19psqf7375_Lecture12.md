@@ -1,0 +1,89 @@
+
+Bayesian Item Response Modeling for Polytomous Categorical Data
+========================================================
+author: Jonathan Templin
+date: Friday, April 92, 2019
+autosize: true
+
+In This Lecture
+========================================================
+
+- IRT Models for Polytomous Data
+    - Graded Response Model
+    - Partial Credit Model
+    - Nominal Response Model
+- Comparisons of Polytomous IRT Models and CFA 
+- Common Example: Conpsiracy Theory Data
+
+Polytomous Categorical Data
+========================================================
+
+- Polytomous Data: Observed data that are (1) discrete and (2) have more than two categories for responses
+- Common modeling distribution: Multinomial distibution
+    - For $N$ observations, the PMF for $X$, a multinomial random variable with $C$ categories is:
+
+$$ P\left(X_1 = x_1, X_2 = x_2, ..., X_C = x_C \right) = \frac{n!}{x_1! x_2!\cdots x_C!}p_1^{x_1}p_2^{x_2}\cdots p_C^{x_C}$$
+
+with 
+
+$$\sum_{c=1}^C p_c = 1$$
+
+Multinomial Distribution for a Single Observation
+========================================================
+
+- The general multinomial distribution becomes much simpler for a single observation
+    - We use this form in our IRT model parameterization
+- Here:
+    - $N=1$
+    - One $x_c = 1$ and the rest are zero, yielding:
+$$ P\left(X_1 = x_1, X_2 = x_2, ..., X_C = x_C \right) = p_1^{x_1}p_2^{x_2}\cdots p_C^{x_C}$$
+
+- Many polytomous IRT models are phrased with this distribution
+
+Graded Response Model
+========================================================
+
+- The Graded Response Model (Samejima, 1969) is a model for ordered categories:
+
+$$ P \left (X_{pi} = c_i \mid \boldsymbol{\theta}_p \right) = 
+   P \left (X_{pi} \geq c_i \mid \boldsymbol{\theta}_p \right) -
+   P \left (X_{pi} \geq c_i + 1 \mid \boldsymbol{\theta}_p \right)$$
+
+- Here, $P \left (X_{pi} \geq c_i \mid \boldsymbol{\theta}_p \right)$ is the probability $X_{pi}$ is category $c_i$ for item $i$ or above, which is typically defined using a two-parameter model with either a logit link function:
+
+$$
+P \left (X_{pi} \geq c_i \mid \boldsymbol{\theta}_p \right) = \frac{\exp{\left(\mu_{ic} + \boldsymbol{\Lambda}_i\boldsymbol{\theta_p} \right)}}{1+\exp{\left(\mu_i + \boldsymbol{\Lambda}_i\boldsymbol{\theta_p} \right)}}
+$$
+
+or a probit link function:
+$$
+P \left (X_{pi} \geq c_i \mid \boldsymbol{\theta}_p \right) = \phi^{-1}\left(\mu_{ic} + \boldsymbol{\Lambda}_i\boldsymbol{\theta_p} \right)
+$$
+where $\mu_{ic}$ are ordered with respect to each category and $P \left (X_{pi} \geq C_i+1 \mid \boldsymbol{\theta}_p \right) = 0$
+
+Note: discrimination/difficulty versions of the model are coded in JAGS
+
+Bayesian Graded Response Model
+========================================================
+
+- The Bayesian version of the Graded Response Model differs only from the Bayeisan Binary IRT model in the distribution of the data
+- Here, we now use the `dcat` function in JAGS:
+
+
+```
+y ~ dcat(pi)
+```
+
+- Note: the `dcat` distribution in JAGS has PMF:
+
+$$P(Y=y) = \frac{\pi_y}{\sum_{i=1}^N \pi_y}$$
+
+
+Bayesian Generalized Partial Credit Model
+========================================================
+
+- The Generalized Partial Credit Model (Muraki, 1992) removes the order constraint on the b parameters and using the following item response function:
+
+$$ P \left (X_{pi} \geq c_i \mid \theta_p \right) = \frac{\exp{\left(\sum_{l=1}^k a_i \left(\theta_p - b_{il} \right)\right)}}{\sum_{m=1}^{C_i} \exp{\left(\sum_{l=1}^m a_i \left(\theta_p - b_{il} \right)\right)}} $$
+
+
