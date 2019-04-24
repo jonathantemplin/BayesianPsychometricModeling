@@ -1,5 +1,5 @@
 ---
-title: 'Lecture 11: Binary IRT Models'
+title: 'Lecture 14: Mixture Models'
 author: "Bayesian Psychometric Modeling"
 output: html_document
 ---
