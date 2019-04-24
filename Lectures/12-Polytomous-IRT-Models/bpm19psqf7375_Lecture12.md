@@ -2,7 +2,7 @@
 Bayesian Item Response Modeling for Polytomous Categorical Data
 ========================================================
 author: Jonathan Templin
-date: Friday, April 92, 2019
+date: Friday, April 29, 2019
 autosize: true
 
 In This Lecture

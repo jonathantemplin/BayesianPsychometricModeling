@@ -38,7 +38,7 @@ library(R2jags)
 # 10. God sent Hurricane Katrina to punish America for its sins.
 
 # read in data:
-conspiracy = read.csv("Lectures/09-Confirmatory-Factor-Analysis/conspiracies.csv")
+conspiracy = read.csv("conspiracies.csv")
 
 # plot each item
 hist(conspiracy$PolConsp1, main = "PolConsp1", xlab = "1. The U.S. invasion of Iraq was not part of a campaign to fight terrorism, but was driven by oil companies and Jews in the U.S. and Israel.")
@@ -287,8 +287,7 @@ model01b.marker.JAGS = jags.model(
   file = textConnection(model01b.marker.syntax),
   data = model01b.data,
   n.chains = nchains,
-  n.adapt = nadapt,
-  inits = model01b.init.values
+  n.adapt = nadapt
 )
 
 list.samplers(model01b.marker.JAGS)

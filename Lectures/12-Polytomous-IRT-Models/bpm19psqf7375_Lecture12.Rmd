@@ -494,6 +494,8 @@ lines(c(-1.3, 3.1),c(-1.3, 3.1))
 plot(x=sdTheta01, y=sdTheta00, xlab = "IRT Posterior SD Theta", ylab = "CFA Posterior SD Factor", ylim = c(.15, .7), xlim = c(.15, .7))
 lines(c(.15, .7),c(.15, .7))
 
+plot(x=meanTheta01, y=sdTheta00)
+
 par(mfrow = c(1,1))
 plot(density(model00.Posterior.all[, which(colnames(model00.Posterior.all) ==names(which.max(sdTheta00)))]), main=names(which.max(sdTheta00)))
 conspiracy[76,]
@@ -640,12 +642,12 @@ model03.function = function(){
     for (item in 1:I){
       
       # create parameters that are unbounded, then sort
-      for (cat in 1:(C[item]-1)){
+      for (cat in 2:(C[item])){
         b[item, cat] ~ dnorm(b.mean.0, b.precision.0)  
         a[item, cat] ~ dnorm(a.mean.0, a.precision.0)
       }
-      b[item, C[item]] <- sum(b[item, 1:(C[item] - 1)])
-      a[item, C[item]] <- sum(a[item, 1:(C[item] - 1)])
+      b[item, C[1]] <- 0
+      a[item, C[1]] <- 0
       
     }
     
@@ -685,8 +687,8 @@ model03.data = list(
 )
 
 model03.init = function(){
-  list("a" = cbind(runif(10), runif(10), runif(10), runif(10), rep(NA, 10)),
-       "b" = cbind(runif(10), runif(10), runif(10), runif(10), rep(NA, 10)))
+  list("a" = cbind(rep(NA, 10), runif(10), runif(10), runif(10), runif(10)),
+       "b" = cbind(rep(NA, 10), runif(10), runif(10), runif(10), runif(10)))
 }
 
 model03.parameters = c("a", "b",  "theta")

@@ -1,0 +1,295 @@
+---
+title: 'Lecture 13: Missing Data via Bayesian'
+author: "Bayesian Psychometric Modeling"
+output: html_document
+---
+
+```{r setup}
+# Install/Load Packages ===============================================================================================
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+```
+
+## Bayesian Methods for Missing Missing Data
+
+Look up the word "missing" from the JAGS user manual (v. 4.3; available at (http://people.stat.sc.edu/hansont/stat740/jags_user_manual.pdf)[http://people.stat.sc.edu/hansont/stat740/jags_user_manual.pdf]) and you will find only three cases: two regarding how missing data should be input into JAGS and one talking about missing values in initialized parameters. Despite this, Bayesian methods missing data are some of the more powerful techniques around.
+
+Let's take an example. Say we create 
+
+```{r DataSimReg}
+
+set.seed(007)
+nObs = 1000
+
+# for x
+probX = .5
+
+# for y|x
+beta0 = 10
+beta1 = 10
+sigma2e = 1
+
+# generate x, then y
+x = rbinom(n = nObs, size = 1, prob = probX)
+y = beta0 + beta1*x + rnorm(n = nObs, mean = 0, sd = sqrt(sigma2e))
+
+# make one value of X missing
+x[1] = NA
+
+# show plot
+plot(x = x, y = y)
+```
+
+Bayesian missing data methods use Bayes Theorem to "impute" values of missing data using specs from a simultaneous analysis. For instance, we could model:
+
+$$ Prob(x_p = 1) = \pi_x, $$
+
+where $x_p \sim B(\pi_x)$, simultaneous to:
+
+$$ y_p = \beta_0 + \beta_1x_p + e_p, $$
+
+where $y_p|x_p \sim N(\beta_0+\beta_1x_p, \sigma^2_e)$.
+
+Here, should we have a missing $x_p$, we can use Bayes' theorem to determine the distribution of the observation:
+
+$$f(x_p|y_p) \propto f(y_p|x_p)f(x_p), $$
+
+Where $f(y_p|x_p)$ is our regression model and $f(x_p)$ is the distribution of $x_p$, or Bernoulli.
+
+We can even make this work in JAGS:
+
+```{r regjags}
+model01.function = function(){
+  for (i in 1:N){
+    x[i] ~ dbern(pi)
+    y[i] ~ dnorm(beta0+beta1*x[i], sigma2.inv)
+  }
+  
+  pi ~ dbeta(1,1)
+  sigma2.inv ~ dgamma(4, 8)
+  sigma2 <- 1/sigma2.inv 
+  
+  beta0 ~ dnorm(0, .00001)
+  beta1 ~ dnorm(0, .00001)
+}
+
+# next, create data for JAGS to use:
+model01.data = list(
+  N = length(x),
+  x = x,
+  y = y
+)
+
+model01.parameters = c("beta0", "beta1", "sigma2", "pi", "x[1]")
+
+model01.seed = 23042019
+
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  jags.seed = model01.seed
+)
+
+model01.r2jags
+model01.r2jags$BUGSoutput$sims.matrix[,6]
+
+```
+
+Comparing this with just modeling $x_p$, we see a difference:
+
+```{r model2reg}
+
+model02.function = function(){
+  for (i in 1:N){
+    x[i] ~ dbern(pi)
+    y[i] ~ dnorm(beta0+beta1*x[i], sigma2.inv)
+  }
+  
+  pi ~ dbeta(1,1)
+  sigma2.inv ~ dgamma(4, 8)
+  sigma2 <- 1/sigma2.inv 
+  
+  beta0 ~ dnorm(0, .00001)
+  beta1 <- 0
+}
+
+model02.r2jags = jags.parallel(
+  data = model01.data,
+  parameters.to.save =  c("beta0", "beta1", "sigma2", "pi", "x[1]"),
+  model.file = model02.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  jags.seed = model01.seed+1
+)
+model02.r2jags
+```
+
+The difference here is with the posterior distribution of $x_p$. In model 1 (the simultaneous regression and marginal $x_p$ model -- given by setting $\beta_1 = 0$) the posterior distribution for $x_p$ involved $y_p$. As you'll note in the plot above, knowing $y_p$ tells us everything about $x_p$ as there is no overlap in $y_p$ across values of $x_p$.
+
+## Missing Item Response Example
+
+We can show the same result in an IRT model when we make an observation missing as well. Let's revisit our conspiracy theories example:
+
+```{r dataimport}
+# read in data:
+conspiracy = read.csv("conspiracies.csv")
+```
+
+To demonstrate how this works in a small-scale sense, let's make the first observation missing:
+
+```{r delete1stobs}
+conspiracy[4,1] = NA
+```
+
+Here, the frustrating part of JAGS kicks in: A matrix of data cannot have any missing values. So, everything has to be a vector. Note the extra syntax below (and also note there may be an easier way, but not one I could discover while prepping this lecture).
+
+```{r missingIRT}
+
+# marker item:
+model03.function = function(){
+
+  # measurement model specification
+    for (person in 1:N){
+      
+      # item 1 ---
+      # form cumulative probability item response functions
+      CProb1[person, 1] <- 1
+      for (cat in 2:5){
+        CProb1[person, cat] <- phi(a1*(theta[person]-b1[(cat-1)]))  
+      }
+      
+      # form probability response is equal to each category
+      for (cat in 1:4){
+        Prob1[person, cat] <- CProb1[person, cat] - CProb1[person, cat+1]
+      }
+      Prob1[person, 5] <- CProb1[person, 5]
+      item1[person] ~ dcat(Prob1[person, 1:5])
+        
+      # item 2 ---
+      # form cumulative probability item response functions
+      CProb2[person, 1] <- 1
+      for (cat in 2:5){
+        CProb2[person, cat] <- phi(a2*(theta[person]-b2[(cat-1)]))  
+      }
+      
+      # form probability response is equal to each category
+      for (cat in 1:4){
+        Prob2[person, cat] <- CProb2[person, cat] - CProb2[person, cat+1]
+      }
+      Prob2[person, 5] <- CProb2[person, 5]
+      item2[person] ~ dcat(Prob2[person, 1:5])
+      
+      # item 3 ---
+      # form cumulative probability item response functions
+      CProb3[person, 1] <- 1
+      for (cat in 2:5){
+        CProb3[person, cat] <- phi(a3*(theta[person]-b3[(cat-1)]))  
+      }
+      
+      # form probability response is equal to each category
+      for (cat in 1:4){
+        Prob3[person, cat] <- CProb3[person, cat] - CProb3[person, cat+1]
+      }
+      Prob3[person, 5] <- CProb3[person, 5]
+      item3[person] ~ dcat(Prob3[person, 1:5])
+      
+    }
+
+  # prior distributions for the factor:
+    for (person in 1:N){
+      theta[person] ~ dnorm(0, 1)
+    }
+
+  # prior distributions for the measurement model mean/precision parameters
+    
+    for (cat in 1:4){
+      b1.star[cat] ~ dnorm(b.mean.0, b.precision.0)  
+      b2.star[cat] ~ dnorm(b.mean.0, b.precision.0)  
+      b3.star[cat] ~ dnorm(b.mean.0, b.precision.0)  
+    }
+    b1[1:4] <- sort(b1.star[1:4])
+    b2[1:4] <- sort(b2.star[1:4])
+    b3[1:4] <- sort(b3.star[1:4])
+    
+    # loadings are set to be all positive
+    a1 ~ dnorm(a.mean.0, a.precision.0);T(0,)
+    a2 ~ dnorm(a.mean.0, a.precision.0);T(0,)
+    a3 ~ dnorm(a.mean.0, a.precision.0);T(0,)
+}
+
+
+nItems = 10
+
+
+# specification of prior values for measurement model parameters:
+#   item intercepts
+b.mean.0 = 0
+b.variance.0 = 100
+b.precision.0 = 1 / b.variance.0
+
+#   Factor loadings -- these are the discriminations
+a.mean.0 = 0
+a.variance.0 = 100
+a.precision.0 = 1 / a.variance.0
+
+# next, create data for JAGS to use:
+model03.data = list(
+  N = nrow(conspiracy),
+  item1 = conspiracy[,1],
+  item2 = conspiracy[,2],
+  item3 = conspiracy[,3],
+  b.mean.0 = b.mean.0,
+  b.precision.0 = b.precision.0,
+  a.mean.0 = a.mean.0,
+  a.precision.0 = a.precision.0
+)
+
+model03.init = function(){
+  list("a1" = runif(1, 1, 2),
+       "a2" = runif(1, 1, 2),
+       "a3" = runif(1, 1, 2),
+       "b1.star" = c(1, 0, -1, -2),
+       "b2.star" = c(1, 0, -1, -2),
+       "b3.star" = c(1, 0, -1, -2))
+}
+
+model03.parameters = c("a1", "a2", "a3", "b1", "b2", "b3",  "item1[4]", "theta[4]", "theta[6]")
+
+model03.seed = 23042019+2
+
+model03.r2jags =  jags.parallel(
+  data = model03.data,
+  inits = model03.init,
+  parameters.to.save = model03.parameters,
+  model.file = model03.function,
+  n.chains = 4,
+  n.iter = 5000,
+  n.thin = 1,
+  n.burnin = 3000,
+  jags.seed = model03.seed
+)
+
+model03.r2jags
+```
+
+Here is the plot of the posterior distribution of the data (these are the imputed values). The observed value was ```1```.
+
+```{r plothist}
+hist(model03.r2jags$BUGSoutput$sims.matrix[,which(colnames(model03.r2jags$BUGSoutput$sims.matrix)=="item1[4]")])
+```
+
+And look at how the posterior distribution of $\theta_p$ changes by removing that one observation. The dashed line is the posterior distribution from an observation with the same response pattern but complete data.
+
+```{r posttheta}
+par(mfrow = c(1,1))
+plot(density(model03.r2jags$BUGSoutput$sims.matrix[,which(colnames(model03.r2jags$BUGSoutput$sims.matrix)=="theta[4]")]), main = "Theta Posterior")
+lines(density(model03.r2jags$BUGSoutput$sims.matrix[,which(colnames(model03.r2jags$BUGSoutput$sims.matrix)=="theta[6]")]), lty=2)
+legend(x = c(-4, -3), y = c(.5, .5), legend = c("Missing", "Complete"), lty=1:2)
+```
