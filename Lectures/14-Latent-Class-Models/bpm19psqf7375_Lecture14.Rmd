@@ -1,0 +1,324 @@
+---
+title: 'Lecture 11: Binary IRT Models'
+author: "Bayesian Psychometric Modeling"
+output: html_document
+---
+
+```{r setup}
+# Install/Load Packages ===============================================================================================
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+
+if (!require(CDM)) install.packages("CDM")
+library(CDM)
+
+if (!require(MCMCpack)) install.packages("MCMCpack")
+library(MCMCpack)
+
+if (!require(mcmcplots)) install.packages("mcmcplots")
+library(mcmcplots)
+
+set.seed(23042019)
+FSdata = fraction.subtraction.data
+FSQmatrix = fraction.subtraction.qmatrix
+```
+
+## Mixture Models for Binary Data: Example Analyses
+
+We will use the Tatsuoka (1984) fraction subtraction data for today's examples. See DeCarlo (2011, p. 9) for the items: https://scholar.google.com/scholar?hl=en&as_sdt=0%2C36&q=l+decarlo+2011&btnG=.
+
+A finite mixture model can be defined by:
+
+$$f(\boldsymbol{x}_p) = \sum_{c=1}^Cf(\boldsymbol{x}_p|c)f(c) =  \sum_{c=1}^C \eta_c f(\boldsymbol{x}_p|c),$$
+where:
+-  $\boldsymbol{x}_p$ is a vector of observed responses for person $p$
+-  $C$ is the total number of classes
+-  $f(\boldsymbol{x}_p)$ is the marginal distribution of $\boldsymbol{x}_p$
+-  $f(\boldsymbol{x}_p|c)$ is the distribution of $\boldsymbol{x}_p$ for class $c$
+-  $f(c)$ is the marginal distribution for the classes, which is multinomial, with probabilities $\sum_{c=1}^C \eta_c = 1$
+
+First, we will consider a latent class model, which assumes binary resposnes that are independent conditional on class:
+
+$$f(\boldsymbol{x}_p) = \sum_{c=1}^C \eta_c \prod_{i=1}^I  \pi_{ic}^{x_{pi}}\left(1 -\pi_{ic} \right)^{1-x_{pi}},$$
+where, additionally:
+-  $x_{pi}$ is the $i$th binary item response for person $p$
+-  $\pi_{ic}$ is the probablity of a correct response to item $i$ in class $c$
+
+Typically, latent class analyses are exploratory models (much like EFA models). So, we have to run a number of models to determine the number of classes in the data, then we will interpret each of the classes.
+
+Here, we will use a Dirichlet distribution (https://en.wikipedia.org/wiki/Dirichlet_distribution) as a prior distribution for $\eta_c$, which is a conjugate prior. Additionally, we will use a Beta(1,1) prior for $\pi_{ic}$, which is also conjugate.
+
+Because this makes my soul die a little, let's pretend a four-class model fit our data. Here is how to run that analysis:
+
+### Model 1: Four-class LCA Model
+
+```{r model1specs}
+# model 1 specs:
+nItems = ncol(FSdata)
+```
+
+```{r model1syntax}
+# marker item:
+model01.function = function(){
+
+  # measurement model specification
+  for (person in 1:N){
+    for (item in 1:I){
+      X[person, item] ~ dbern(pi[item, xclass[person]])
+    }
+  }
+  
+  # prior distribution for class:
+  for (person in 1:N){
+    xclass[person] ~ dcat(eta[1:C])
+  }
+  
+  # prior distribution for class probabilities:
+  eta[1:C] ~ ddirich(alpha[1:C])
+  
+  # prior distribution for the factor variance
+  for (item in 1:I){
+    for (class in 1:C){
+      pi[item, class] ~ dbeta(a.0,b.0)
+    }
+  }
+    
+}
+
+```
+
+```{r model1data}
+
+# set number of classes
+C = 4
+
+# set priors for item parameters:
+a.0 = 1
+b.0 = 1
+
+# set priors for parameters of dirichlet distribution
+alpha = rep(1:C)
+
+model01.inits = function(){
+  library(MCMCpack)
+  list("eta" = rdirichlet(n = 1, alpha = alpha))
+}
+
+# next, create data for JAGS to use:
+model01.data = list(
+  N = nrow(FSdata),
+  X = FSdata,
+  I = nItems,
+  C = C,
+  a.0 = a.0,
+  b.0 = b.0,
+  alpha = alpha
+)
+
+model01.parameters = c("pi", "eta",  "xclass")
+
+# for reproducable analyses
+model01.seed = 23042019
+```
+
+Here, we will use the R2jags `jags.parallel()` function, which will run somewhat faster (one chain per core):
+
+```{r model1r2jags, cache=TRUE}
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 10000,
+  n.thin = 5,
+  n.burnin = 5000,
+  n.cluster = 4, 
+  jags.seed = model01.seed
+)
+model01.r2jags
+
+```
+
+The multiple modes in this model seem similar to those in other psychometric models, there is a bigger issue: Finite Mixture Models have a multimodal likelihood surface, meaning the deviance values will be different for different modes:
+
+```{r modeissues}
+traplot(mcmcout = model01.r2jags, parms = c("deviance"), greek = TRUE)
+```
+
+This complicates our life considerably as we can't simply flip the sign of the parameters to identify the model. Further, we could have multiple parameter values for the same mode: the issue from our other models. This is called label switching in FMMs: The results are all the same, but the class labels change (e.g., 1, 2, 3, 4 become 2, 1, 3, 4).
+
+To limit label switching, we can order the values of the $\eta$ parameters from highest to lowest. This removes one problem:
+
+```{r model2syntax}
+# marker item:
+model02.function = function(){
+
+  # measurement model specification
+  for (person in 1:N){
+    for (item in 1:I){
+      X[person, item] ~ dbern(pi[item, xclass[person]])
+    }
+  }
+  
+  # prior distribution for class:
+  for (person in 1:N){
+    xclass[person] ~ dcat(eta[1:C])
+  }
+  
+  # prior distribution for class probabilities:
+  eta.star[1:C] ~ ddirich(alpha[1:C])
+  
+  # sort eta parameters from low to high to stop label switching
+  eta[1:C] <- sort(eta.star)
+  
+  # prior distribution for the factor variance
+  for (item in 1:I){
+    for (class in 1:C){
+      pi[item, class] ~ dbeta(a.0,b.0)
+    }
+  }
+    
+}
+
+model02.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model02.function,
+  n.chains = 4,
+  n.iter = 10000,
+  n.thin = 5,
+  n.burnin = 5000,
+  n.cluster = 4, 
+  jags.seed = model01.seed
+)
+model02.r2jags
+
+traplot(mcmcout = model02.r2jags, parms = c("deviance"), greek = TRUE)
+```
+Here, we still see multiple modes. To further remove this problem, we can examine the chains with the lowest deviance values only. From below, we see this includes chains 1, 2, and 3.
+
+```{r model02dev}
+par(mfrow = c(1,4))
+plot(model02.r2jags$BUGSoutput$sims.array[,1,1])
+plot(model02.r2jags$BUGSoutput$sims.array[,2,1])
+plot(model02.r2jags$BUGSoutput$sims.array[,3,1])
+plot(model02.r2jags$BUGSoutput$sims.array[,4,1])
+```
+
+So, we can now examine these chains (roughly):
+
+```{r model02post}
+
+# convert sims.array to a mcmc.list for coda, removing [,2,]:
+newChain = list()
+
+for (i in c(1, 2, 3)){
+  newChain[[length(newChain)+1]] = mcmc(model02.r2jags$BUGSoutput$sims.array[,i,])
+}
+
+newChain = mcmc.list(newChain)
+
+# first, we can check convergence:
+gelman.diag(newChain, multivariate = FALSE)
+summary(newChain)
+
+# next, we can check parameters:
+denplot(mcmcout = model02.r2jags, parms = c("eta"), greek = TRUE)
+```
+
+There are some who believe the multimodality of the posterior distribution is a good thing, so let's pretend we are those people and examine all chains together:
+
+```{r model02post2}
+
+model02.r2jags
+
+
+```
+Now, we can examine how well this model fits the data:
+
+```{r model1fit}
+nObs = nrow(FSdata)
+
+# list number of simulated data sets
+nSimulatedDataSets = 5000
+
+# create one large matrix of posterior values
+model01.Posterior.all = model01.r2jags$BUGSoutput$sims.matrix
+dim(model01.Posterior.all)
+
+# determine columns of posterior that go into each model matrix
+colnames(model01.Posterior.all)
+etaCols = grep(x = colnames(model01.Posterior.all), pattern = "eta")
+piCols = grep(x = colnames(model01.Posterior.all), pattern = "pi")
+
+# save simulated covariances:
+simCovModel01 = matrix(data = NA, nrow = nSimulatedDataSets, ncol = nItems*nItems)
+
+# loop through data sets (can be sped up with functions and lapply)
+pb = txtProgressBar()
+sim = 1
+for (sim in 1:nSimulatedDataSets){
+  
+  # draw sample from one iteration of posterior chain 
+  iternum = sample(x = 1:nrow(model01.Posterior.all), size = 1, replace = TRUE)
+  
+  # get parameters for that sample: put into factor model matrices for easier generation of data
+  eta = model01.Posterior.all[iternum, etaCols]
+  pi = matrix(data = model01.Posterior.all[iternum, piCols], ncol = C)
+  
+  # generate sample of classes from theta distribution
+  class = matrix(data = sample(x = 1:C, size = nObs, replace = TRUE, prob = eta), nrow = 1)
+  
+  simData = matrix(data = NA, ncol = I, nrow = nObs)
+  i=1
+  for (i in 1:I){
+    probs = pi[i,class]
+    simData[,i] = rbinom(n = nObs, size = 1, prob = probs)
+  }
+  
+  # calculate the value of SRMR using simulated data's covariance matrix and observed covariance matrix
+  simCov = cov(simData)
+  simCovModel01[sim,] = c(cov(simData))
+  
+  setTxtProgressBar(pb = pb, value = sim/nSimulatedDataSets)
+}
+close(pb)
+
+# label values of simCor to ensure we have the right comparison
+covNames = NULL
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    covNames = c(covNames, paste0("cov", i, "." , j))
+  }
+}
+colnames(simCovModel01) = covNames
+
+# show how one correlation compares to distribution of simulated correlations
+dataCov = cov(FSdata)
+hist(simCovModel01[,2])
+plot(density(simCovModel01[,2]))
+lines(x = c(dataCov[1,2], dataCov[1,2]), y = c(0, max(density(simCovModel01[,2])$y)), col = 2)
+quantile(simCovModel01[,2])
+mean(simCovModel01[,2])
+dataCov[1,2]
+
+# create quantiles of correlations to see where each observed correlation falls
+covQuantiles01 = NULL
+
+# compute the quantiles of the observed correlations:
+
+col = 1
+for (i in 1:ncol(simData)){
+  for (j in 1:ncol(simData)){
+    # get empirical CDF of simulated correlation distribution
+    covEcdf = ecdf(simCovModel01[,col])
+    covQuantiles01 = rbind(covQuantiles01, c(i, j, summary(covEcdf), dataCov[i,j], covEcdf(dataCov[i,j])))
+    
+    col = col + 1
+  }
+}
+colnames(covQuantiles01)[1:2] = c("Item 1", "Item 2")
+colnames(covQuantiles01)[9:10] = c("ObsCor", "CorPctile")
+covQuantiles01[which(covQuantiles01[,10] > .975 | covQuantiles01[,10] < .025),]
+
+```
