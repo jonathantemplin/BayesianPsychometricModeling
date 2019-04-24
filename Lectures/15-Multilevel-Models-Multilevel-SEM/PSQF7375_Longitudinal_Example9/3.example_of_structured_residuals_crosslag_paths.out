@@ -1,0 +1,491 @@
+Mplus VERSION 8.2
+MUTHEN & MUTHEN
+04/24/2019   9:57 AM
+
+INPUT INSTRUCTIONS
+
+  TITLE:  Model 3: Example of Structured Residuals to Fit Cross-Lag Effects
+
+  DATA:   FILE = Chapter9.csv;   ! Syntax in same folder as data
+  ! Unstacking to multivariate format
+  DATA LONGTOWIDE:
+  ! Names of old stacked former variables (without numbers)
+    LONG = risky|mon|age;
+  ! Names of new multivariate variables (that use numbers)
+    WIDE = risky12-risky18|mon12-mon18|age12-age18;
+  ! Variable with level-2 ID info
+    IDVARIABLE = PersonID;
+  ! Old level-1 identifier
+    REPETITION = occasion (12 13 14 15 16 17 18);
+
+  VARIABLE:
+  ! List of variables in original data file
+    NAMES = PersonID occasion risky age att4 mon agesq;
+  ! Variables to be analyzed in this model
+    USEVARIABLE = att4 risky12-risky18 mon12-mon18 age12-age18;
+    MISSING ARE ALL (-999);   ! Missing data identifier
+    TSCORES = age12-age18;    ! Exact time indicator
+
+  ANALYSIS:   TYPE = RANDOM; ESTIMATOR = ML; MODEL = NOCOVARIANCES;
+  MODEL:  ! R = risky behavior, M = monitoring
+  [risky12-risky18@0 mon12-mon18@0]; ! All variable intercepts fixed to 0
+
+  ! Risky behavior quadratic growth model using exact age as loadings
+    Rint Rslp Rquad | risky12-risky18 AT age12-age18;
+  ! Monitoring linear growth model using exact age as loadings
+    Mint Mslp | mon12-mon18 AT age12-age18;
+  ! Fixed growth effects for R and M
+    [Rint Rslp Rquad Mint Mslp];
+  ! L2 G: Random int and linear age slope variances, no quad age variance
+    Rint Rslp Rquad@0 Mint Mslp;
+  ! L2 G: Within-variable random int-slope covariances for R, M
+    Rint WITH Rslp; Mint WITH Mslp;
+  ! Attitudes --> risky int, linear slope
+    Rint Rslp ON att4;
+
+  ! L2 G: covariances for random intercepts and slopes across outcomes
+    Rint Rslp WITH Mint Mslp;
+
+  ! Define new latent factors for residuals at each occasion
+    Frisky12 BY risky12@1;
+    Frisky13 BY risky13@1;
+    Frisky14 BY risky14@1;
+    Frisky15 BY risky15@1;
+    Frisky16 BY risky16@1;
+    Frisky17 BY risky17@1;
+    Frisky18 BY risky18@1;
+    Fmon12 BY mon12@1;
+    Fmon13 BY mon13@1;
+    Fmon14 BY mon14@1;
+    Fmon15 BY mon15@1;
+    Fmon16 BY mon16@1;
+    Fmon17 BY mon17@1;
+    Fmon18 BY mon18@1;
+
+  ! All factor means fixed to 0
+    [Frisky12-Frisky18@0  Fmon12-Fmon18@0];
+
+  ! Shut off old residual variances
+    risky12-risky18@0 mon12-mon18@0;
+  ! Hold new residual variances equal over time
+    Frisky12-Frisky18 (Rresvar); ! L1 R: R residual variances held equal
+    Fmon12-Fmon18     (Mresvar); ! L1 R: M residual variances held equal
+
+  ! Factor residual WP effect between same ages, held equal across age
+    Frisky12-Frisky18 PWITH Fmon12-Fmon18     (ResCov);
+
+  ! Cross-lag WP effects predicting next age, held equal across age
+    Frisky13-Frisky18 PON   Fmon12-Fmon17     (MR2RR);
+    Fmon13-Fmon18     PON   Frisky12-Frisky17 (RR2MR);
+
+
+
+
+
+INPUT READING TERMINATED NORMALLY
+
+
+
+Model 3: Example of Structured Residuals to Fit Cross-Lag Effects
+
+SUMMARY OF ANALYSIS
+
+Number of groups                                                 1
+Number of observations                                         200
+
+Number of dependent variables                                   14
+Number of independent variables                                  1
+Number of continuous latent variables                           19
+
+Observed dependent variables
+
+  Continuous
+   RISKY12     RISKY13     RISKY14     RISKY15     RISKY16     RISKY17
+   RISKY18     MON12       MON13       MON14       MON15       MON16
+   MON17       MON18
+
+Observed independent variables
+   ATT4
+
+Continuous latent variables
+   FRISKY12    FRISKY13    FRISKY14    FRISKY15    FRISKY16    FRISKY17
+   FRISKY18    FMON12      FMON13      FMON14      FMON15      FMON16
+   FMON17      FMON18      RINT        RSLP        RQUAD       MINT
+   MSLP
+
+Variables with special functions
+
+  ID variable           PERSONID
+
+  Time scores
+   AGE12       AGE13       AGE14       AGE15       AGE16       AGE17
+   AGE18
+
+
+Estimator                                                       ML
+Information matrix                                        OBSERVED
+Maximum number of iterations                                   100
+Convergence criterion                                    0.100D-05
+Maximum number of EM iterations                                500
+Convergence criteria for the EM algorithm
+  Loglikelihood change                                   0.100D-02
+  Relative loglikelihood change                          0.100D-05
+  Derivative                                             0.100D-03
+Minimum variance                                         0.100D-03
+Maximum number of steepest descent iterations                   20
+Maximum number of iterations for H1                           2000
+Convergence criterion for H1                             0.100D-03
+Optimization algorithm                                         EMA
+
+Input data file(s)
+  Chapter9.csv
+Input data format  FREE
+
+
+SUMMARY OF DATA
+
+     Number of missing data patterns             1
+
+
+COVARIANCE COVERAGE OF DATA
+
+Minimum covariance coverage value   0.100
+
+
+     PROPORTION OF DATA PRESENT
+
+
+           Covariance Coverage
+              RISKY12       RISKY13       RISKY14       RISKY15       RISKY16
+              ________      ________      ________      ________      ________
+ RISKY12        1.000
+ RISKY13        1.000         1.000
+ RISKY14        1.000         1.000         1.000
+ RISKY15        1.000         1.000         1.000         1.000
+ RISKY16        1.000         1.000         1.000         1.000         1.000
+ RISKY17        1.000         1.000         1.000         1.000         1.000
+ RISKY18        1.000         1.000         1.000         1.000         1.000
+ MON12          1.000         1.000         1.000         1.000         1.000
+ MON13          1.000         1.000         1.000         1.000         1.000
+ MON14          1.000         1.000         1.000         1.000         1.000
+ MON15          1.000         1.000         1.000         1.000         1.000
+ MON16          1.000         1.000         1.000         1.000         1.000
+ MON17          1.000         1.000         1.000         1.000         1.000
+ MON18          1.000         1.000         1.000         1.000         1.000
+ ATT4           1.000         1.000         1.000         1.000         1.000
+
+
+           Covariance Coverage
+              RISKY17       RISKY18       MON12         MON13         MON14
+              ________      ________      ________      ________      ________
+ RISKY17        1.000
+ RISKY18        1.000         1.000
+ MON12          1.000         1.000         1.000
+ MON13          1.000         1.000         1.000         1.000
+ MON14          1.000         1.000         1.000         1.000         1.000
+ MON15          1.000         1.000         1.000         1.000         1.000
+ MON16          1.000         1.000         1.000         1.000         1.000
+ MON17          1.000         1.000         1.000         1.000         1.000
+ MON18          1.000         1.000         1.000         1.000         1.000
+ ATT4           1.000         1.000         1.000         1.000         1.000
+
+
+           Covariance Coverage
+              MON15         MON16         MON17         MON18         ATT4
+              ________      ________      ________      ________      ________
+ MON15          1.000
+ MON16          1.000         1.000
+ MON17          1.000         1.000         1.000
+ MON18          1.000         1.000         1.000         1.000
+ ATT4           1.000         1.000         1.000         1.000         1.000
+
+
+
+UNIVARIATE SAMPLE STATISTICS
+
+
+     UNIVARIATE HIGHER-ORDER MOMENT DESCRIPTIVE STATISTICS
+
+         Variable/         Mean/     Skewness/   Minimum/ % with                Percentiles
+        Sample Size      Variance    Kurtosis    Maximum  Min/Max      20%/60%    40%/80%    Median
+
+     RISKY12              16.722       0.546      10.000    3.50%      12.362     15.044     16.077
+             200.000      20.892      -0.116      33.104    0.50%      17.304     20.850
+     RISKY13              17.183       0.628      10.000    1.50%      13.271     15.565     17.013
+             200.000      19.558       0.116      29.166    0.50%      18.157     19.938
+     RISKY14              17.863       0.504      10.000    1.50%      13.995     16.558     17.753
+             200.000      20.246       0.163      31.942    0.50%      18.744     21.425
+     RISKY15              18.982      -0.041      10.011    0.50%      14.277     18.422     19.197
+             200.000      20.810      -0.644      29.552    0.50%      20.249     22.721
+     RISKY16              19.773       0.275      10.000    0.50%      16.013     18.304     19.486
+             200.000      21.913      -0.181      33.050    0.50%      20.493     23.731
+     RISKY17              21.651      -0.171      10.066    0.50%      16.977     20.695     21.934
+             200.000      27.112      -0.579      31.978    0.50%      22.972     26.180
+     RISKY18              23.521      -0.100      10.204    0.50%      18.920     22.139     23.858
+             200.000      29.248      -0.431      36.282    0.50%      24.804     28.135
+     MON12                 0.078      -0.164      -2.000    1.00%      -0.609     -0.103      0.151
+             200.000       0.643       0.046       2.000    0.50%       0.288      0.694
+     MON13                 0.092      -0.062      -1.824    0.50%      -0.581     -0.062      0.160
+             200.000       0.583      -0.215       2.000    1.00%       0.286      0.769
+     MON14                 0.066       0.004      -2.000    0.50%      -0.481     -0.148      0.067
+             200.000       0.442       0.088       1.968    0.50%       0.245      0.593
+     MON15                 0.098      -0.120      -1.868    0.50%      -0.378     -0.083      0.059
+             200.000       0.369       0.204       1.630    0.50%       0.233      0.645
+     MON16                 0.069      -0.121      -1.708    0.50%      -0.370     -0.074      0.078
+             200.000       0.294       0.162       1.643    0.50%       0.187      0.522
+     MON17                 0.057      -0.066      -1.865    0.50%      -0.355     -0.092      0.022
+             200.000       0.266       0.746       1.350    0.50%       0.125      0.451
+     MON18                 0.068      -0.031      -1.660    0.50%      -0.334     -0.098      0.035
+             200.000       0.308      -0.037       1.421    0.50%       0.171      0.536
+     ATT4                 -0.049      -0.092      -1.563    0.50%      -0.532     -0.232     -0.072
+             200.000       0.361      -0.473       1.000    8.00%       0.103      0.483
+
+
+THE MODEL ESTIMATION TERMINATED NORMALLY
+
+
+
+MODEL FIT INFORMATION
+
+Number of Free Parameters                       22
+
+Loglikelihood
+
+          H0 Value                       -4388.743
+
+Information Criteria
+
+          Akaike (AIC)                    8821.485
+          Bayesian (BIC)                  8894.048
+          Sample-Size Adjusted BIC        8824.350
+            (n* = (n + 2) / 24)
+
+
+
+MODEL RESULTS
+
+                                                    Two-Tailed
+                    Estimate       S.E.  Est./S.E.    P-Value
+
+ FRISKY12 BY
+    RISKY12            1.000      0.000    999.000    999.000
+
+ FRISKY13 BY
+    RISKY13            1.000      0.000    999.000    999.000
+
+ FRISKY14 BY
+    RISKY14            1.000      0.000    999.000    999.000
+
+ FRISKY15 BY
+    RISKY15            1.000      0.000    999.000    999.000
+
+ FRISKY16 BY
+    RISKY16            1.000      0.000    999.000    999.000
+
+ FRISKY17 BY
+    RISKY17            1.000      0.000    999.000    999.000
+
+ FRISKY18 BY
+    RISKY18            1.000      0.000    999.000    999.000
+
+ FMON12   BY
+    MON12              1.000      0.000    999.000    999.000
+
+ FMON13   BY
+    MON13              1.000      0.000    999.000    999.000
+
+ FMON14   BY
+    MON14              1.000      0.000    999.000    999.000
+
+ FMON15   BY
+    MON15              1.000      0.000    999.000    999.000
+
+ FMON16   BY
+    MON16              1.000      0.000    999.000    999.000
+
+ FMON17   BY
+    MON17              1.000      0.000    999.000    999.000
+
+ FMON18   BY
+    MON18              1.000      0.000    999.000    999.000
+
+ FRISKY13   ON
+    FMON12            -0.255      0.373     -0.683      0.495
+
+ FRISKY14   ON
+    FMON13            -0.255      0.373     -0.683      0.495
+
+ FRISKY15   ON
+    FMON14            -0.255      0.373     -0.683      0.495
+
+ FRISKY16   ON
+    FMON15            -0.255      0.373     -0.683      0.495
+
+ FRISKY17   ON
+    FMON16            -0.255      0.373     -0.683      0.495
+
+ FRISKY18   ON
+    FMON17            -0.255      0.373     -0.683      0.495
+
+ FMON13     ON
+    FRISKY12           0.008      0.004      2.079      0.038
+
+ FMON14     ON
+    FRISKY13           0.008      0.004      2.079      0.038
+
+ FMON15     ON
+    FRISKY14           0.008      0.004      2.079      0.038
+
+ FMON16     ON
+    FRISKY15           0.008      0.004      2.079      0.038
+
+ FMON17     ON
+    FRISKY16           0.008      0.004      2.079      0.038
+
+ FMON18     ON
+    FRISKY17           0.008      0.004      2.079      0.038
+
+ RINT       ON
+    ATT4              -3.331      0.514     -6.485      0.000
+
+ RSLP       ON
+    ATT4              -0.529      0.103     -5.153      0.000
+
+ RINT     WITH
+    RSLP               1.902      0.358      5.318      0.000
+    MINT              -0.883      0.171     -5.172      0.000
+    MSLP               0.033      0.039      0.852      0.394
+
+ MINT     WITH
+    MSLP              -0.001      0.004     -0.198      0.843
+    RSLP              -0.110      0.031     -3.525      0.000
+
+ RSLP     WITH
+    MSLP              -0.020      0.008     -2.638      0.008
+
+ FRISKY12 WITH
+    FMON12             0.298      0.031      9.606      0.000
+
+ FRISKY13 WITH
+    FMON13             0.298      0.031      9.606      0.000
+
+ FRISKY14 WITH
+    FMON14             0.298      0.031      9.606      0.000
+
+ FRISKY15 WITH
+    FMON15             0.298      0.031      9.606      0.000
+
+ FRISKY16 WITH
+    FMON16             0.298      0.031      9.606      0.000
+
+ FRISKY17 WITH
+    FMON17             0.298      0.031      9.606      0.000
+
+ FRISKY18 WITH
+    FMON18             0.298      0.031      9.606      0.000
+
+ Means
+    FRISKY12           0.000      0.000    999.000    999.000
+    FMON12             0.000      0.000    999.000    999.000
+    RQUAD              0.146      0.020      7.194      0.000
+    MINT               0.065      0.034      1.913      0.056
+    MSLP              -0.003      0.008     -0.388      0.698
+
+ Intercepts
+    RISKY12            0.000      0.000    999.000    999.000
+    RISKY13            0.000      0.000    999.000    999.000
+    RISKY14            0.000      0.000    999.000    999.000
+    RISKY15            0.000      0.000    999.000    999.000
+    RISKY16            0.000      0.000    999.000    999.000
+    RISKY17            0.000      0.000    999.000    999.000
+    RISKY18            0.000      0.000    999.000    999.000
+    MON12              0.000      0.000    999.000    999.000
+    MON13              0.000      0.000    999.000    999.000
+    MON14              0.000      0.000    999.000    999.000
+    MON15              0.000      0.000    999.000    999.000
+    MON16              0.000      0.000    999.000    999.000
+    MON17              0.000      0.000    999.000    999.000
+    MON18              0.000      0.000    999.000    999.000
+    FRISKY13           0.000      0.000    999.000    999.000
+    FRISKY14           0.000      0.000    999.000    999.000
+    FRISKY15           0.000      0.000    999.000    999.000
+    FRISKY16           0.000      0.000    999.000    999.000
+    FRISKY17           0.000      0.000    999.000    999.000
+    FRISKY18           0.000      0.000    999.000    999.000
+    FMON13             0.000      0.000    999.000    999.000
+    FMON14             0.000      0.000    999.000    999.000
+    FMON15             0.000      0.000    999.000    999.000
+    FMON16             0.000      0.000    999.000    999.000
+    FMON17             0.000      0.000    999.000    999.000
+    FMON18             0.000      0.000    999.000    999.000
+    RINT              23.311      0.347     67.170      0.000
+    RSLP               1.970      0.136     14.459      0.000
+
+ Variances
+    FRISKY12           8.301      0.379     21.890      0.000
+    FMON12             0.081      0.004     22.126      0.000
+    RQUAD              0.000      0.000    999.000    999.000
+    MINT               0.195      0.023      8.306      0.000
+    MSLP               0.010      0.001      7.676      0.000
+
+ Residual Variances
+    RISKY12            0.000      0.000    999.000    999.000
+    RISKY13            0.000      0.000    999.000    999.000
+    RISKY14            0.000      0.000    999.000    999.000
+    RISKY15            0.000      0.000    999.000    999.000
+    RISKY16            0.000      0.000    999.000    999.000
+    RISKY17            0.000      0.000    999.000    999.000
+    RISKY18            0.000      0.000    999.000    999.000
+    MON12              0.000      0.000    999.000    999.000
+    MON13              0.000      0.000    999.000    999.000
+    MON14              0.000      0.000    999.000    999.000
+    MON15              0.000      0.000    999.000    999.000
+    MON16              0.000      0.000    999.000    999.000
+    MON17              0.000      0.000    999.000    999.000
+    MON18              0.000      0.000    999.000    999.000
+    FRISKY13           8.301      0.379     21.890      0.000
+    FRISKY14           8.301      0.379     21.890      0.000
+    FRISKY15           8.301      0.379     21.890      0.000
+    FRISKY16           8.301      0.379     21.890      0.000
+    FRISKY17           8.301      0.379     21.890      0.000
+    FRISKY18           8.301      0.379     21.890      0.000
+    FMON13             0.081      0.004     22.126      0.000
+    FMON14             0.081      0.004     22.126      0.000
+    FMON15             0.081      0.004     22.126      0.000
+    FMON16             0.081      0.004     22.126      0.000
+    FMON17             0.081      0.004     22.126      0.000
+    FMON18             0.081      0.004     22.126      0.000
+    RINT              18.165      2.210      8.220      0.000
+    RSLP               0.492      0.080      6.132      0.000
+
+
+QUALITY OF NUMERICAL RESULTS
+
+     Condition Number for the Information Matrix              0.679E-05
+       (ratio of smallest to largest eigenvalue)
+
+
+DIAGRAM INFORMATION
+
+  Use View Diagram under the Diagram menu in the Mplus Editor to view the diagram.
+  If running Mplus from the Mplus Diagrammer, the diagram opens automatically.
+
+  Diagram output
+    c:\dropbox\19_psqf7375_longitudinal\psqf7375_longitudinal_example9\3.example_of_structured_residuals_crosslag_paths.
+
+     Beginning Time:  09:57:50
+        Ending Time:  09:57:54
+       Elapsed Time:  00:00:04
+
+
+
+MUTHEN & MUTHEN
+3463 Stoner Ave.
+Los Angeles, CA  90066
+
+Tel: (310) 391-9971
+Fax: (310) 391-8971
+Web: www.StatModel.com
+Support: Support@StatModel.com
+
+Copyright (c) 1998-2018 Muthen & Muthen

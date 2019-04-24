@@ -76,7 +76,6 @@ model01.function = function(){
   # prior distribution for class probabilities:
   eta[1:C] ~ ddirich(alpha[1:C])
   
-  # prior distribution for the factor variance
   for (item in 1:I){
     for (class in 1:C){
       pi[item, class] ~ dbeta(a.0,b.0)

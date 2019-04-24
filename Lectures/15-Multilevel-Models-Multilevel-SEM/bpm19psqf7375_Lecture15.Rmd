@@ -1,0 +1,616 @@
+---
+title: 'Lecture 15: Multivariate Longitudinal Multilevel Models'
+author: "Bayesian Psychometric Modeling"
+output: html_document
+---
+
+```{r setup}
+# Install/Load Packages ===============================================================================================
+
+if (!require(ggplot2)) install.packages("ggplot2")
+library(ggplot2)
+
+if (!require(R2jags)) install.packages("R2jags")
+library(R2jags)
+
+if (!require(mcmcplots)) install.packages("mcmcplots")
+library(mcmcplots)
+
+```
+
+Today's data and lecture inspiration come from Lesa Hoffman (http://www.lesahoffman.com) and her book Longitudinal Analysis: Modeling Within-Person Fluctuation and Change (http://www.pilesofvariance.com/). We will be examining data from Chapter 9: Time-Varying Predictors in Models of Change.
+
+```{r dataimport}
+Ch9Data = read.csv(file = "Chapter9.csv", header = TRUE)
+
+# check out variable names
+names(Ch9Data)
+
+# check for missing data
+apply(X = Ch9Data, MARGIN = 2, FUN = function(x) return(length(which(is.na(x)))))
+
+```
+From Lesa's Chapter 9 Handout:
+
+>These simulated data are from Hoffman (2015) chapter 9, and include 200 girls measured approximately annually from ages 12–18 (time 0 = age 18) on their risky behavior (the outcome, a sum ranging from 10 to 50) and the extent to which their mothers monitored their activities (the time-varying predictor, a mean ranging from 1 to 5, centered at 3). A time-invariant predictor of the conservativeness of mothers’ attitudes about the smoking and drinking (a mean ranging from 1 to 5, centered at 4) was also collected at the age 12 occasion. Here are the individual growth trajectories for risky behavior and monitoring:
+
+```{r spagplot}
+
+plot1 = ggplot(data = Ch9Data, aes(x = age18+18, y = risky, group = PersonID))
+
+## simple spaghetti plot
+plot1 + geom_line() + stat_smooth(aes(group = 1)) + stat_summary(aes(group = 1),
+    geom = "point", fun.y = mean, shape = 17, size = 3)
+
+plot2 = ggplot(data = Ch9Data, aes(x = age18+18, y = mon3+3, group = PersonID))
+
+## simple spaghetti plot
+plot2 + geom_line() + stat_smooth(aes(group = 1)) + stat_summary(aes(group = 1),
+    geom = "point", fun.y = mean, shape = 17, size = 3)
+
+plot3 = ggplot(data = Ch9Data, aes(x = mon3+3, y = risky, group = PersonID))
+
+## simple spaghetti plot
+plot3 + geom_line() + stat_smooth(aes(group = 1)) + stat_summary(aes(group = 1),
+    geom = "point", fun.y = mean, shape = 17, size = 3)
+```
+
+From p.1 of Lesa's handout (pulled 28 April, 2019)
+
+> The best-fitting unconditional longitudinal models included fixed quadratic and random linear effects of age for risky behavior, but a random linear effect of
+age for monitoring (although the fixed linear age slope was nonsignificant). In addition, mother’s attitudes significantly predicted the intercept and linear age slope for risky behavior, but did not significantly predict monitoring.
+
+> Chapter 9 began with person-mean-centering and baseline-centering of monitoring of a time-varying predictor of risky behavior. Both were shown to be inadequate because they do not properly distinguish the intercept, linear age slope, and residual variance contained in the monitoring predictor, each of which could potentially relate to those of risky behavior. So the purpose of this example is to demonstrate alternative software methods of estimating models of multivariate change so that you can decide what approach (software and syntax combination) will be most optimal for your own data.
+
+## Model 1: Undirected Multivariate Longitudinal Model
+
+We will adapt Lesa's multilevel notation as we have a multivariate multilevel model. Most of the notation will remain the same, but the left-hand side of the Level 1 equation chagnes:
+
+##### Level 1
+
+$Monitor_{ti} = \beta_{0iM} +\beta_{1iM}\left(Age_{ti} -18\right) + e_{tiM}$
+
+$Risky_{ti} = \beta_{0iR} +\beta_{1iR}\left(Age_{ti} -18\right) +\beta_{2iR}\left(Age_{ti} -18\right)^2 + e_{tiR}$
+
+##### Level 2 (Monitor):
+
+$\beta_{0iM} = \gamma_{00M} + U_{0iM}$
+
+$\beta_{1iM} = \gamma_{10M} + U_{1iM}$ 
+
+##### Level 2 (Risky):                                    
+
+$\beta_{0iR} = \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + U_{0iR}$
+
+$\beta_{1iR} = \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + U_{1iR}$
+
+$\beta_{2iR} = \gamma_{20R}$
+
+Additionally:
+
+$$\left[ e_{tiR}, e_{tiM}\right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{R}\right),$$
+
+where all unique elements of $\boldsymbol{R}$ are estimated (SAS' TYPE=UN structure), and:
+
+$$\left[ U_{0iM}, U_{0iR}, U_{1iM}, U_{1iR} \right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{G}\right),$$
+where all unique elements of $\boldsymbol{G}$ are estimated (SAS' TYPE=UN structure). 
+
+We will need to create the two composite models for the dependent variables so as to code these into JAGS:
+
+##### Composite Model for Monitor
+
+$Monitor_{ti} = \left( \gamma_{00M} + U_{0iM}\right) + \left( \gamma_{10M} + U_{1iM}\right)\left(Age_{ti} -18\right) + e_{tiM}$
+
+##### Composite Model for Risky
+<!-- \left( \right) -->
+
+$Risky_{ti} = \left( \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + U_{0iR} \right) + \left( \beta_{1iR} = \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + U_{1iR} \right)\left(Age_{ti} -18\right) + \left( \gamma_{20R}\right)\left(Age_{ti} -18\right)^2 + e_{tiR}$
+
+Next, we need to create terms that JAGS will use to loop over during the data likelihood. Specifically, the number of level-2 observations (```N```), the number of level-1 observations for each level-2 observation (```PersonObs```), and the rows of the original data each level-1 observation within each level-2 observation occupies (```ObsRow```). We will also put both DVs into a single matrix (```X```).
+
+```{r ModelSetup}
+
+# need total number level-2 observations
+N = length(table(Ch9Data$PersonID))
+
+# need number of level-1 observations per level-2 observation
+PersonObs = unlist(lapply(X = 1:N, FUN = function(x) return(length(which(Ch9Data$PersonID == x)))))
+
+# format data for import into JAGS: need index for which rows of data belong to which time[person]
+ObsRow = sapply(X = 1:N, FUN = function(x) return(which(Ch9Data$PersonID == x)), simplify = TRUE)
+
+# create data matrix
+X = cbind(Ch9Data$risky, Ch9Data$mon3)
+```
+
+Here, we will use very uninformative priors for all model parameters:
+
+```{r Model1, cache=TRUE}
+# create prior values for Wishart distributions for G and R
+R0  = diag(2)
+Rdf = 2
+
+G0  = diag(4)
+Gdf = 4
+
+model01.function = function(){
+  
+  for (person in 1:N){
+    for (time in 1:PersonObs[person]){
+      
+      # model for Risky
+      meanVec[ObsRow[time, person],1] <- 
+        (gamma00.risky + gamma01.risky*att4[ObsRow[time, person]] + U[person,1]) +                             # Risky Intercept
+        (gamma10.risky + gamma11.risky*att4[ObsRow[time, person]] + U[person,3])*age18[ObsRow[time, person]] + # Risky Linear Age Slope
+        (gamma20.risky)*age18[ObsRow[time, person]]^2                                                          # Risky Quadratic Age Slope
+      
+      # model for Monitor
+      meanVec[ObsRow[time, person],2] <- 
+        (gamma00.monitor + U[person, 2]) +                                                                    # Monitor Intercept
+        (gamma10.monitor + U[person, 4])*age18[ObsRow[time, person]]                                          # Monitor Linear Age Slope
+      
+      X[ObsRow[time,person], 1:2] ~ dmnorm(meanVec[ObsRow[time,person], 1:2], R.inv[1:2, 1:2])
+    }
+    
+  }
+  # prior distribution for random effects
+  for (person in 1:N){
+    U[person, 1:4] ~ dmnorm(meanU[1:4], G.inv[1:4,1:4])
+  }
+  
+  # hyper priors for U
+  for (i in 1:4){
+    meanU[i] <- 0 # zero mean
+  }
+  
+  G.inv[1:4, 1:4] ~ dwish(G0[1:4, 1:4], Gdf)
+  R.inv[1:2, 1:2] ~ dwish(R0[1:2, 1:2], Rdf)
+  
+  G[1:4, 1:4] <- inverse(G.inv[1:4, 1:4])
+  R[1:2, 1:2] <- inverse(R.inv[1:2, 1:2])
+  
+  gamma00.risky   ~ dnorm(0, 0.0001)
+  gamma01.risky   ~ dnorm(0, 0.0001)
+  gamma10.risky   ~ dnorm(0, 0.0001)
+  gamma11.risky   ~ dnorm(0, 0.0001)
+  gamma20.risky   ~ dnorm(0, 0.0001)
+  gamma00.monitor ~ dnorm(0, 0.0001)
+  gamma10.monitor ~ dnorm(0, 0.0001) 
+}
+
+model01.data = list(
+  N = N,
+  X = X,
+  PersonObs = PersonObs,
+  ObsRow = ObsRow,
+  R0 = R0,
+  Rdf = Rdf,
+  G0 = G0,
+  Gdf = Gdf,
+  att4 = Ch9Data$att4,
+  age18 = Ch9Data$age18
+)
+
+model01.parameters = c("G", "R", "gamma00.risky", "gamma01.risky", "gamma10.risky", "gamma11.risky",
+                       "gamma20.risky", "gamma00.monitor", "gamma10.monitor")
+
+model01.seed = 27042019
+
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 15000,
+  n.thin = 1,
+  n.burnin = 3000,
+  jags.seed = model01.seed
+)
+
+model01.r2jags
+traplot(model01.r2jags, parms = "R")
+
+# R2jags is acting strange with n.burnin...and upon inspection, it is using burnin to adapt the algorithm.
+
+model01a = window(x = as.mcmc(model01.r2jags), start = 2001, end = 12000)
+
+model01a.results = cbind(round(summary(model01a)$statistics, 4), round(summary(model01a)$quantiles, 4), gelman.diag(model01a, multivariate = FALSE)[[1]][,1])
+model01a.results
+```
+
+
+## Model 2: Undirected Multivariate Longitudinal Model
+
+Next, we add Monitor to the prediction of Risky, using the entire value of Monitor in the prediction. Note, this corresponds to Mplus' ML estimator for this model. Again, will adapt Lesa's multilevel notation as we have a multivariate multilevel model. Most of the notation will remain the same, but the left-hand side of the Level 1 equation chagnes:
+
+##### Level 1
+
+$Monitor_{ti} = \beta_{0iM} +\beta_{1iM}\left(Age_{ti} -18\right) + e_{tiM}$
+
+$Risky_{ti} = \beta_{0iR} +\beta_{1iR}\left(Age_{ti} -18\right) +\beta_{2iR}\left(Age_{ti} -18\right)^2 + \beta_{3iR}\left(Monitor_{ti}\right) e_{tiR}$
+
+##### Level 2 (Monitor):
+
+$\beta_{0iM} = \gamma_{00M} + U_{0iM}$
+
+$\beta_{1iM} = \gamma_{10M} + U_{1iM}$ 
+
+##### Level 2 (Risky):                                    
+
+$\beta_{0iR} = \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + \gamma_{02R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{03M}\left(\gamma_{10M} + U_{1iM} \right) + U_{0iR}$
+
+$\beta_{1iR} = \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + \gamma_{12R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{13M}\left(\gamma_{10M} + U_{1iM} \right)  + U_{1iR}$
+
+$\beta_{2iR} = \gamma_{20R}$
+
+$\beta_{3iR} = \gamma_{30R}$
+
+Now, a few things are different:
+
+$$\left[ e_{tiR}, e_{tiM}\right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{R}\right),$$
+
+where all unique diagonal elements of $\boldsymbol{R}$ are estimated and the off-diagonal elements are set to zero (SAS' TYPE=VC structure), and:
+
+$$\left[ U_{0iM}, U_{1iM}\right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{G}_M\right),$$
+
+where all unique elements of $\boldsymbol{G}_M$ are estimated (SAS' TYPE=UN structure), and 
+
+$$\left[ U_{0iR}, U_{1iR} \right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{G}_R\right),$$
+where all unique elements of $\boldsymbol{G}_R$ are estimated (SAS' TYPE=UN structure). 
+
+We will need to create the two composite models for the dependent variables so as to code these into JAGS:
+
+##### Composite Model for Monitor
+
+$Monitor_{ti} = \left( \gamma_{00M} + U_{0iM}\right) + \left( \gamma_{10M} + U_{1iM}\right)\left(Age_{ti} -18\right) + e_{tiM}$
+
+##### Composite Model for Risky
+<!-- \left( \right) -->
+
+$Risky_{ti} = \left( \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + \gamma_{02R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{03M}\left(\gamma_{10M} + U_{1iM} \right) + U_{0iR} \right) + \left( \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + \gamma_{12R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{13M}\left(\gamma_{10M} + U_{1iM} \right)  + U_{1iR}\right)\left(Age_{ti} -18\right) + \left( \gamma_{20R}\right)\left(Age_{ti} -18\right)^2 + \left( \gamma_{30R} \right)Monitor_{ti} +e_{tiR}$
+
+Here, we will break up the level-1 residuals to estimate with ```dnorm()```, which is equivalent to setting the covariance to zero.
+
+```{r Model2, cache=TRUE}
+
+# setting priors for variances -- keeping all terms independent as additional model parameters do the same job
+
+# risky R matrix
+sigma2.inv.risky.sse0 = .5*var(Ch9Data$risky)
+sigma2.inv.risky.df0 = 1
+    
+sigma2.inv.risky.alpha0 = sigma2.inv.risky.df0/2
+sigma2.inv.risky.beta0 = (sigma2.inv.risky.df0*sigma2.inv.risky.sse0)/2
+
+# risky G matrix
+G0risky  = c(.4*var(Ch9Data$risky), .1*var(Ch9Data$risky))*diag(2)
+G0risky.df = 2
+
+# monitor R matrix
+sigma2.inv.monitor.sse0 = .5*var(Ch9Data$mon3)
+sigma2.inv.monitor.df0 = 1
+    
+sigma2.inv.monitor.alpha0 = sigma2.inv.monitor.df0/2
+sigma2.inv.monitor.beta0 = (sigma2.inv.monitor.df0*sigma2.inv.monitor.sse0)/2
+
+# monitor G matrix
+G0monitor = c(.4*var(Ch9Data$mon3), .1*var(Ch9Data$mon3))*diag(2)
+G0monitor.df = 2
+
+model02.function = function(){
+  
+  for (person in 1:N){
+    for (time in 1:PersonObs[person]){
+      
+      # model for Risky
+      meanVec[ObsRow[time, person],1] <- 
+        (gamma00.risky + gamma01.risky*att4[ObsRow[time, person]] +                                    # Risky Intercept
+           gamma02.risky*(gamma00.monitor + U.monitor[person,1]) + 
+           gamma03.risky*(gamma10.monitor + U.monitor[person,2]) + U.risky[person,1]) +                             
+        (gamma10.risky + gamma11.risky*att4[ObsRow[time, person]] +                                    # Risky Linear Age Slope
+           gamma12.risky*(gamma00.monitor + U.monitor[person,1]) + 
+           gamma13.risky*(gamma10.monitor + U.monitor[person,2]) +
+           U.risky[person,2])*age18[ObsRow[time, person]] + 
+        (gamma20.risky)*age18[ObsRow[time, person]]^2 +                                                # Risky Quadratic Age Slope
+        gamma30.risky*Monitor[ObsRow[time,person]]                                                     # Risky Monitor Slope
+      
+      X[ObsRow[time,person], 1] ~ dnorm(meanVec[ObsRow[time,person], 1], sigma2.inv.risky)             # Univariate normal likelihood as R has zero covariance
+      
+      # model for Monitor
+      meanVec[ObsRow[time, person],2] <-                                                               # Monitor Intercept
+        (gamma00.monitor + U.monitor[person, 1]) +                                                                    
+        (gamma10.monitor + U.monitor[person, 2])*age18[ObsRow[time, person]]                                   # Monitor Linear Age Slope
+      
+      X[ObsRow[time,person], 2] ~ dnorm(meanVec[ObsRow[time,person], 2], sigma2.inv.monitor)           # Univariate normal likelihood as R has zero covariance
+    }
+    
+  }
+
+  # prior distributions for R matrix variances
+  sigma2.inv.risky       ~ dgamma(sigma2.inv.risky.alpha0,       sigma2.inv.risky.beta0)
+  sigma2.inv.monitor     ~ dgamma(sigma2.inv.monitor.alpha0,     sigma2.inv.monitor.beta0)
+  
+  sigma2.risky      <- 1/sigma2.inv.risky
+  sigma2.monitor    <- 1/sigma2.inv.monitor
+
+    
+  # prior distributions for random effects
+  for (person in 1:N){
+    U.risky[person, 1:2]   ~ dmnorm(U.risky.mean[1:2],   G.inv.risky[1:2,1:2])
+    U.monitor[person, 1:2] ~ dmnorm(U.monitor.mean[1:2], G.inv.monitor[1:2,1:2])
+  }
+  
+  # prior distributions for random effects G matrices
+  G.inv.risky ~ dwish(G0risky, G0risky.df)
+  G.risky <- inverse(G.inv.risky)
+  
+  G.inv.monitor ~ dwish(G0monitor, G0monitor.df)
+  G.monitor <- inverse(G.inv.monitor)
+
+  # prior distributions for fixed effects
+  gamma00.risky   ~ dnorm(0, 0.0001)
+  gamma01.risky   ~ dnorm(0, 0.0001)
+  gamma10.risky   ~ dnorm(0, 0.0001)
+  gamma11.risky   ~ dnorm(0, 0.0001)
+  gamma20.risky   ~ dnorm(0, 0.0001)
+  gamma02.risky   ~ dnorm(0, 0.0001)
+  gamma03.risky   ~ dnorm(0, 0.0001)
+  gamma12.risky   ~ dnorm(0, 0.0001)
+  gamma13.risky   ~ dnorm(0, 0.0001)
+  gamma30.risky   ~ dnorm(0, 0.0001)
+  gamma00.monitor ~ dnorm(0, 0.0001)
+  gamma10.monitor ~ dnorm(0, 0.0001)
+  
+}
+
+model02.data = list(
+  N = N,
+  X = cbind(Ch9Data$risky, Ch9Data$mon3),
+  PersonObs = PersonObs,
+  ObsRow = ObsRow,
+  att4 = Ch9Data$att4,
+  age18 = Ch9Data$age18,
+  Monitor = Ch9Data$mon3,
+  sigma2.inv.risky.alpha0 = sigma2.inv.risky.alpha0,
+  sigma2.inv.risky.beta0 = sigma2.inv.risky.beta0,
+  sigma2.inv.monitor.alpha0 = sigma2.inv.monitor.alpha0,
+  sigma2.inv.monitor.beta0 = sigma2.inv.monitor.beta0,
+  G0monitor = G0monitor, 
+  G0monitor.df = G0monitor.df,
+  U.monitor.mean = rep(0,2),
+  G0risky = G0risky,
+  G0risky.df = G0risky.df,
+  U.risky.mean = rep(0,2)
+)
+
+model02.parameters = c("gamma00.risky", "gamma01.risky", "gamma10.risky", "gamma11.risky",
+                       "gamma20.risky", "gamma00.monitor", "gamma10.monitor", "gamma02.risky",
+                       "gamma03.risky", "gamma12.risky", "gamma13.risky", "gamma30.risky",
+                       "sigma2.risky", "sigma2.monitor", "G.risky", "G.monitor")
+
+model02.seed = 27042019+1
+
+model02.r2jags =  jags.parallel(
+  data = model02.data,
+  parameters.to.save = model02.parameters,
+  model.file = model02.function,
+  n.chains = 4,
+  n.iter = 15000,
+  n.thin = 1,
+  n.burnin = 3000,
+  jags.seed = model02.seed
+)
+
+model02.r2jags
+traplot(model02.r2jags, parms = "gamma02.risky")
+
+# R2jags is acting strange with n.burnin...and upon inspection, it is using burnin to adapt the algorithm.
+
+model02a = window(x = as.mcmc(model02.r2jags), start = 2001, end = 12000)
+
+model02a.results = cbind(round(summary(model02a)$statistics, 4), round(summary(model02a)$quantiles, 4), gelman.diag(model02a, multivariate = FALSE)[[1]][,1])
+model02a.results
+
+```
+
+
+
+## Model 3: Undirected Multivariate Longitudinal Model with Residualized Monitor
+
+Finally, we add just the residual version of Monitor to the prediction of Risky. Note, this corresponds to Mplus' Bayesian estimator for this model. Again, will adapt Lesa's multilevel notation as we have a multivariate multilevel model. 
+
+##### Level 1
+
+$Monitor_{ti} = \beta_{0iM} +\beta_{1iM}\left(Age_{ti} -18\right) + e_{tiM}$
+
+$Risky_{ti} = \beta_{0iR} +\beta_{1iR}\left(Age_{ti} -18\right) +\beta_{2iR}\left(Age_{ti} -18\right)^2 + \beta_{3iR}\left(Monitor_{ti} -  \left(\left( \gamma_{00M} + U_{0iM}\right) + \left( \gamma_{10M} + U_{1iM}\right)\left(Age_{ti} -18\right) \right)\right) e_{tiR}$
+
+##### Level 2 (Monitor):
+
+$\beta_{0iM} = \gamma_{00M} + U_{0iM}$
+
+$\beta_{1iM} = \gamma_{10M} + U_{1iM}$ 
+
+##### Level 2 (Risky):                                    
+
+$\beta_{0iR} = \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + \gamma_{02R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{03M}\left(\gamma_{10M} + U_{1iM} \right) + U_{0iR}$
+
+$\beta_{1iR} = \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + \gamma_{12R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{13M}\left(\gamma_{10M} + U_{1iM} \right)  + U_{1iR}$
+
+$\beta_{2iR} = \gamma_{20R}$
+
+$\beta_{3iR} = \gamma_{30R}$
+
+Now, a few things are different:
+
+$$\left[ e_{tiR}, e_{tiM}\right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{R}\right),$$
+
+where all unique diagonal elements of $\boldsymbol{R}$ are estimated and the off-diagonal elements are set to zero (SAS' TYPE=VC structure), and:
+
+$$\left[ U_{0iM}, U_{1iM}\right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{G}_M\right),$$
+
+where all unique elements of $\boldsymbol{G}_M$ are estimated (SAS' TYPE=UN structure), and 
+
+$$\left[ U_{0iR}, U_{1iR} \right]^T \sim MVN\left( \boldsymbol{0}, \boldsymbol{G}_R\right),$$
+where all unique elements of $\boldsymbol{G}_R$ are estimated (SAS' TYPE=UN structure). 
+
+We will need to create the two composite models for the dependent variables so as to code these into JAGS:
+
+##### Composite Model for Monitor
+
+$Monitor_{ti} = \left( \gamma_{00M} + U_{0iM}\right) + \left( \gamma_{10M} + U_{1iM}\right)\left(Age_{ti} -18\right) + e_{tiM}$
+
+##### Composite Model for Risky
+<!-- \left( \right) -->
+
+$Risky_{ti} = \left( \gamma_{00R} + \gamma_{01R}\left(Attitudes12_i -4 \right) + \gamma_{02R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{03M}\left(\gamma_{10M} + U_{1iM} \right) + U_{0iR} \right) + \left( \gamma_{10R} + \gamma_{11R}\left(Attitudes12_i -4 \right) + \gamma_{12R}\left(\gamma_{00M} + U_{0iM}\right) + \gamma_{13M}\left(\gamma_{10M} + U_{1iM} \right)  + U_{1iR}\right)\left(Age_{ti} -18\right) + \left( \gamma_{20R}\right)\left(Age_{ti} -18\right)^2 + \left( \gamma_{30R} \right) \left(Monitor_{ti} -  \left(\left( \gamma_{00M} + U_{0iM}\right) + \left( \gamma_{10M} + U_{1iM}\right)\left(Age_{ti} -18\right) \right)\right) +e_{tiR}$
+
+
+```{r Model3, cache=TRUE}
+
+# setting priors for variances -- keeping all terms independent as additional model parameters do the same job
+
+# risky R matrix
+sigma2.inv.risky.sse0 = .5*var(Ch9Data$risky)
+sigma2.inv.risky.df0 = 1
+    
+sigma2.inv.risky.alpha0 = sigma2.inv.risky.df0/2
+sigma2.inv.risky.beta0 = (sigma2.inv.risky.df0*sigma2.inv.risky.sse0)/2
+
+# risky G matrix
+G0risky  = c(.4*var(Ch9Data$risky), .1*var(Ch9Data$risky))*diag(2)
+G0risky.df = 2
+
+# monitor R matrix
+sigma2.inv.monitor.sse0 = .5*var(Ch9Data$mon3)
+sigma2.inv.monitor.df0 = 1
+    
+sigma2.inv.monitor.alpha0 = sigma2.inv.monitor.df0/2
+sigma2.inv.monitor.beta0 = (sigma2.inv.monitor.df0*sigma2.inv.monitor.sse0)/2
+
+# monitor G matrix
+G0monitor = c(.4*var(Ch9Data$mon3), .1*var(Ch9Data$mon3))*diag(2)
+G0monitor.df = 2
+
+model03.function = function(){
+  
+  for (person in 1:N){
+    for (time in 1:PersonObs[person]){
+      
+      # residualize monitor variable for prediction of risky
+      residualMonitor[ObsRow[time, person]] <- Monitor[ObsRow[time,person]] - 
+        ((gamma00.monitor + U.monitor[person, 1]) + (gamma10.monitor + U.monitor[person, 2])*age18[ObsRow[time, person]])
+      
+      # model for Risky
+      meanVec[ObsRow[time, person],1] <- 
+        (gamma00.risky + gamma01.risky*att4[ObsRow[time, person]] +                                    # Risky Intercept
+           gamma02.risky*(gamma00.monitor + U.monitor[person,1]) + 
+           gamma03.risky*(gamma10.monitor + U.monitor[person,2]) + U.risky[person,1]) +                             
+        (gamma10.risky + gamma11.risky*att4[ObsRow[time, person]] +                                    # Risky Linear Age Slope
+           gamma12.risky*(gamma00.monitor + U.monitor[person,1]) + 
+           gamma13.risky*(gamma10.monitor + U.monitor[person,2]) +
+           U.risky[person,2])*age18[ObsRow[time, person]] + 
+        (gamma20.risky)*age18[ObsRow[time, person]]^2 +                                                # Risky Quadratic Age Slope
+        gamma30.risky*residualMonitor[ObsRow[time, person]]                                            # Risky Monitor Slope
+      
+      X[ObsRow[time,person], 1] ~ dnorm(meanVec[ObsRow[time,person], 1], sigma2.inv.risky)             # Univariate normal likelihood as R has zero covariance
+      
+      # model for Monitor
+      meanVec[ObsRow[time, person],2] <-                                                               # Monitor Intercept
+        (gamma00.monitor + U.monitor[person, 1]) +                                                                    
+        (gamma10.monitor + U.monitor[person, 2])*age18[ObsRow[time, person]]                                   # Monitor Linear Age Slope
+      
+      X[ObsRow[time,person], 2] ~ dnorm(meanVec[ObsRow[time,person], 2], sigma2.inv.monitor)           # Univariate normal likelihood as R has zero covariance
+    }
+    
+  }
+
+  # prior distributions for R matrix variances
+  sigma2.inv.risky       ~ dgamma(sigma2.inv.risky.alpha0,       sigma2.inv.risky.beta0)
+  sigma2.inv.monitor     ~ dgamma(sigma2.inv.monitor.alpha0,     sigma2.inv.monitor.beta0)
+  
+  sigma2.risky      <- 1/sigma2.inv.risky
+  sigma2.monitor    <- 1/sigma2.inv.monitor
+
+    
+  # prior distributions for random effects
+  for (person in 1:N){
+    U.risky[person, 1:2]   ~ dmnorm(U.risky.mean[1:2],   G.inv.risky[1:2,1:2])
+    U.monitor[person, 1:2] ~ dmnorm(U.monitor.mean[1:2], G.inv.monitor[1:2,1:2])
+  }
+  
+  # prior distributions for random effects G matrices
+  G.inv.risky ~ dwish(G0risky, G0risky.df)
+  G.risky <- inverse(G.inv.risky)
+  
+  G.inv.monitor ~ dwish(G0monitor, G0monitor.df)
+  G.monitor <- inverse(G.inv.monitor)
+
+  # prior distributions for fixed effects
+  gamma00.risky   ~ dnorm(0, 0.0001)
+  gamma01.risky   ~ dnorm(0, 0.0001)
+  gamma10.risky   ~ dnorm(0, 0.0001)
+  gamma11.risky   ~ dnorm(0, 0.0001)
+  gamma20.risky   ~ dnorm(0, 0.0001)
+  gamma02.risky   ~ dnorm(0, 0.01)
+  gamma03.risky   ~ dnorm(0, 0.0001)
+  gamma12.risky   ~ dnorm(0, 0.0001)
+  gamma13.risky   ~ dnorm(0, 0.0001)
+  gamma30.risky   ~ dnorm(0, 0.0001)
+  gamma00.monitor ~ dnorm(0, 0.0001)
+  gamma10.monitor ~ dnorm(0, 0.0001)
+  
+}
+
+model03.data = list(
+  N = N,
+  X = cbind(Ch9Data$risky, Ch9Data$mon3),
+  PersonObs = PersonObs,
+  ObsRow = ObsRow,
+  att4 = Ch9Data$att4,
+  age18 = Ch9Data$age18,
+  Monitor = Ch9Data$mon3,
+  sigma2.inv.risky.alpha0 = sigma2.inv.risky.alpha0,
+  sigma2.inv.risky.beta0 = sigma2.inv.risky.beta0,
+  sigma2.inv.monitor.alpha0 = sigma2.inv.monitor.alpha0,
+  sigma2.inv.monitor.beta0 = sigma2.inv.monitor.beta0,
+  G0monitor = G0monitor, 
+  G0monitor.df = G0monitor.df,
+  U.monitor.mean = rep(0,2),
+  G0risky = G0risky,
+  G0risky.df = G0risky.df,
+  U.risky.mean = rep(0,2)
+)
+
+model03.parameters = c("gamma00.risky", "gamma01.risky", "gamma10.risky", "gamma11.risky",
+                       "gamma20.risky", "gamma00.monitor", "gamma10.monitor", "gamma02.risky",
+                       "gamma03.risky", "gamma12.risky", "gamma13.risky", "gamma30.risky",
+                       "sigma2.risky", "sigma2.monitor", "G.risky", "G.monitor")
+
+model03.seed = 27042019+2
+
+model03.r2jags =  jags.parallel(
+  data = model03.data,
+  parameters.to.save = model03.parameters,
+  model.file = model03.function,
+  n.chains = 4,
+  n.iter = 15000,
+  n.thin = 1,
+  n.burnin = 3001,
+  jags.seed = model03.seed
+)
+
+model03.r2jags
+traplot(model03.r2jags, parms = "gamma02.risky")
+
+
+model03a = window(x = as.mcmc(model03.r2jags), start = 2001, end = 12000)
+model03a.results = cbind(round(summary(model03a)$statistics, 4), round(summary(model03a)$quantiles, 4), gelman.diag(model03a, multivariate = FALSE)[[1]][,1])
+
+model23comp = cbind(model02a.results[,1:2], model03a.results[,1:2])
+model23comp = cbind(model23comp, model23comp[,1] - model23comp[,3])
+colnames(model23comp) = c("M2.PosteriorMean","M2.PosteriorSD", "M3.PosteriorMean","M3.PosteriorSD","M2-M3 Mean Dif")
+model23comp
+```
+
+Notice the difference in two parameter values...ask Lesa Hoffman why that happens to be.

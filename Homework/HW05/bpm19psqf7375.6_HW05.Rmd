@@ -1,0 +1,73 @@
+---
+title: 'Homework #5'
+author: "Bayesian Psychometric Models"
+date: "Due Date: April 10, 2019 (15 points total)"
+output: html_document
+---
+
+This homework consists of two problems, with point totals varying by problem. Please submit your homework as an R Markdown file named FirstName_LastName.Rmd with answers to the questions clearly labeled. 
+
+## A. Model and Analysis from Article 1 (11 points)
+
+0. Read the following article: Lee, S., & Bolt, D. M. (2018). An alternative to the 3PL: Using assymetric item characteristic curves to address guessing effects. Journal of Educational Measurement, 55, p. 90-111. https://onlinelibrary.wiley.com/doi/10.1111/jedm.12165
+1. Using the Fraction Subtraction data from class, create a replicate sample (with replacement) of the original data points using your 8-digit Iowa ID number as the random number seed the following syntax:
+
+```{r sample1}
+
+if (!require(CDM)) install.packages("CDM")
+library(CDM)
+
+IowaID = 12345678
+set.seed(12345678)
+
+data("fraction.subtraction.data")
+
+# read in original data
+HW05DataImport1 = fraction.subtraction.data
+
+# create a sample from the data file:
+HW05DataObs2 = sample(x = 1:nrow(HW05DataImport1), size = nrow(HW05DataImport1), replace = TRUE)
+
+# create a new data frame using only that sample: -- Use this data frame in all analyses
+HW05Data1 = HW05DataImport1[HW05DataObs2,]
+
+```
+2. Create a Bayesian analysis using the model stated in Equation 5 of the paper (p. 96)
+3. Create a Bayesian analysis using a 3-PL model.
+4. Determine which model is preferred using DIC.
+
+## B. Model and Analysis (4 points)
+
+0. Using the conspiracy data from class (and in this folder), create a replicate sample (with replacement) of the original data points using your 8-digit Iowa ID number as the random number seed the following syntax:
+
+```{r sample2}
+
+
+IowaID = 12345678
+set.seed(12345678)
+
+# read in original data
+HW05DataImport2 = read.csv("conspiracies.csv")
+
+# create a sample from the data file:
+HW05DataObs2 = sample(x = 1:nrow(HW05DataImport2), size = nrow(HW05DataImport2), replace = TRUE)
+
+# create a new data frame using only that sample: -- Use this data frame in all analyses
+HW05Data2 = HW05DataImport2[HW05DataObs2,]
+
+# subtract 1 from every item, making them range from 0-4
+for (i in 1:10){
+  HW05Data2[,i] = HW05Data2[,i]-1
+}
+```
+
+
+1. Create a Bayesian model where each item is treated as coming from a binomial distribution where there are four trials and the number of successess is the score of the item (minus one, so they can be 0, 1, 2, 3, 4). In this model, use a 2-PL for the probability of a success for each item.
+2. Estimate a graded response model for these data
+3. Estimate a partial credit model for these data
+4. Determine which model is preferred based on DIC
+
+## Homework Revisions:
+
+As this homework is due at the end of the semester, no revisions will be accepted.
+

@@ -1,0 +1,53 @@
+TITLE:  Model 3: Directed Path Multivariate Longitudinal Model as Single-Level SEM
+DATA:   FILE = Chapter9.csv;   ! Syntax in same folder as data
+! Unstacking to multivariate format
+DATA LONGTOWIDE:
+! Names of old stacked former variables (without numbers)
+  LONG = risky|mon|age;  
+! Names of new multivariate variables (that use numbers)
+  WIDE = risky12-risky18|mon12-mon18|age12-age18; 
+! Variable with level-2 ID info 
+  IDVARIABLE = PersonID;       
+! Old level-1 identifier        
+  REPETITION = occasion (12 13 14 15 16 17 18);
+
+VARIABLE:
+! List of variables in original data file
+  NAMES = PersonID occasion risky age att4 mon agesq;
+! Variables to be analyzed in this model
+  USEVARIABLE = att4 risky12-risky18 mon12-mon18 age12-age18;
+  MISSING ARE ALL (-999);   ! Missing data identifier
+  TSCORES = age12-age18;    ! Exact time indicator
+
+ANALYSIS:   TYPE = RANDOM; ESTIMATOR = ML; MODEL = NOCOVARIANCES;
+MODEL:  ! R = risky behavior, M = monitoring
+[risky12-risky18@0 mon12-mon18@0]; ! All variable intercepts fixed to 0
+ risky12-risky18 (Rresvar);      ! L1 R: R residual variances held equal
+ mon12-mon18     (Mresvar);      ! L1 R: M residual variances held equal
+
+! Risky behavior quadratic growth model using exact age as loadings
+  Rint Rslp Rquad | risky12-risky18 AT age12-age18;
+! Monitoring linear growth model using exact age as loadings
+  Mint Mslp | mon12-mon18 AT age12-age18;
+! Fixed growth effects for R and M
+  [Rint Rslp Rquad Mint Mslp];            
+! L2 G: Random int and linear age slope variances, no quad age variance
+  Rint Rslp Rquad@0 Mint Mslp;  
+! L2 G: Within-variable random int-slope covariances for R, M            
+  Rint WITH Rslp; Mint WITH Mslp;    
+! Attitudes --> risky int, linear slope
+  Rint Rslp ON att4;             
+ 
+! Regressions between outcomes
+  Rint ON Mint (IntCont);        ! Intercept contextual BP effect
+  Rslp ON Mslp (SlpCont);        ! Age slope contextual BP effect
+  Rslp ON Mint (Int2Slp);        ! M int -> R slope total BP effect
+  Rint ON Mslp (Slp2Int);        ! M slope -> R int total BP effect
+
+! Residual WP effect between same ages, held equal across age
+  risky12-risky18 PON mon12-mon18 (ResEff); 
+ 
+MODEL CONSTRAINT:  
+NEW(BPIntEff BPSlpEff);
+BPIntEff = ResEff + IntCont;    ! Total BP intercept effect
+BPSlpEff = ResEff + SlpCont;    ! Total BP age slope effect

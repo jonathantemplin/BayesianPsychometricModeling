@@ -1,0 +1,50 @@
+TITLE:  Model 2: Directed Path Multivariate Longitudinal Model as "Multilevel SEM"
+DATA:   FILE = Chapter9.csv;   ! Syntax in same folder as data
+VARIABLE:
+! List of variables in data file
+  NAMES = PersonID occasion risky age18 att4 mon3 agesq;
+! Variables to be analyzed in this model
+  USEVARIABLE = age18 agesq att4 risky mon3;
+  MISSING ARE ALL (-999);   ! Missing data identifier
+! MLM options
+  CLUSTER = PersonID;       ! Level-2 ID
+  BETWEEN = att4;           ! Observed ONLY level-2 predictors
+  WITHIN  = age18 agesq;    ! Observed ONLY level-1 predictors
+
+ANALYSIS:   TYPE = TWOLEVEL RANDOM; ESTIMATOR = ML; 
+
+MODEL:  ! R = risky behavior, M = monitoring
+%WITHIN%
+ Risky Mon3 (Rresvar Mresvar);   ! L1 R: Residual variances (labels)
+ Rslp  | Risky ON age18;         ! Placeholder for R linear age slope
+ Rquad | Risky ON agesq;         ! Placeholder for R quadratic age slope
+ Mslp  | Mon3  ON age18;         ! Placeholder for M linear age slope
+ ! Regression between outcomes instead of covariance
+ WPres | Risky ON Mon3;          ! Placeholder for L1 WP effect M->R
+
+%BETWEEN%
+[Risky Mon3];                    ! Fixed intercepts
+ Risky Mon3 (Rintvar Mintvar);   ! L2 G: Random intercept variances (labels)
+[Rquad Rslp Mslp];               ! Fixed age slopes (as defined earlier)
+ Rslp Mslp  (Rslpvar Mslpvar);   ! L2 G: Random linear age slope variances
+ Rquad@0;                        ! No quadratic age slope variance
+ 
+ Risky Rslp ON att4;             ! Att-> R int, linear age slope
+ Risky WITH Rslp (RIntSlp);      ! R Int-slope covariance (label)
+ Mon3  WITH Mslp (MIntSlp);      ! M Int-slope covariance (label)
+
+ ! Regressions between outcomes instead of covariances
+ Risky ON Mon3 (IntCont);        ! Intercept contextual BP effect
+ Rslp  ON Mslp (SlpCont);        ! Age slope contextual BP effect
+ Rslp  ON Mon3 (Int2Slp);        ! M int -> R slope total BP effect
+ Risky ON Mslp (Slp2Int);        ! M slope -> R int total BP effect
+
+ [WPres] (ResEff);  ! Fixed effect for L1 WP M->R (as defined earlier)
+  WPres@0;          ! No random L1 WP M->R effect variance
+
+MODEL CONSTRAINT:  ! Like ESTIMATE in SAS, but can refer to any parameter 
+! Need to name each new created effect
+NEW(BPIntEff BPSlpEff);
+BPIntEff = ResEff + IntCont;    ! Total BP intercept effect
+BPSlpEff = ResEff + SlpCont;    ! Total BP age slope effect
+

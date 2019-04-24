@@ -8,18 +8,23 @@ output: html_document
 # Install/Load Packages ===============================================================================================
 if (!require(R2jags)) install.packages("R2jags")
 library(R2jags)
+
+if (!require(mcmcplots)) install.packages("mcmcplots")
+library(mcmcplots)
+
 ```
 
-## Bayesian Methods for Missing Missing Data
+## Bayesian Methods for Missing Data
 
 Look up the word "missing" from the JAGS user manual (v. 4.3; available at (http://people.stat.sc.edu/hansont/stat740/jags_user_manual.pdf)[http://people.stat.sc.edu/hansont/stat740/jags_user_manual.pdf]) and you will find only three cases: two regarding how missing data should be input into JAGS and one talking about missing values in initialized parameters. Despite this, Bayesian methods missing data are some of the more powerful techniques around.
 
-Let's take an example. Say we create 
+Let's take an example. Say we create:
 
 ```{r DataSimReg}
 
 set.seed(007)
 nObs = 1000
+nMiss = 1
 
 # for x
 probX = .5
@@ -34,8 +39,8 @@ x = rbinom(n = nObs, size = 1, prob = probX)
 y = beta0 + beta1*x + rnorm(n = nObs, mean = 0, sd = sqrt(sigma2e))
 
 # make one value of X missing
-x[1] = NA
-
+x[sample(x = 1:nObs, size = nMiss, replace = FALSE)] = NA
+x[1]= NA
 # show plot
 plot(x = x, y = y)
 ```
@@ -96,6 +101,7 @@ model01.r2jags =  jags.parallel(
 )
 
 model01.r2jags
+denplot(model01.r2jags, parms = "beta1")
 model01.r2jags$BUGSoutput$sims.matrix[,6]
 
 ```
@@ -132,6 +138,80 @@ model02.r2jags
 ```
 
 The difference here is with the posterior distribution of $x_p$. In model 1 (the simultaneous regression and marginal $x_p$ model -- given by setting $\beta_1 = 0$) the posterior distribution for $x_p$ involved $y_p$. As you'll note in the plot above, knowing $y_p$ tells us everything about $x_p$ as there is no overlap in $y_p$ across values of $x_p$.
+
+
+```{r DataSimReg2}
+
+set.seed(007)
+nObs = 1000
+nMiss = 400
+
+# for x
+meanX = 50
+sdX = 100
+
+# for y|x
+beta0 = 0
+beta1 = 0
+beta2 = -100
+sigma2e = 1
+
+# generate x, then y
+x = rnorm(n = nObs, mean = meanX, sd = sdX)
+y = beta0 + beta1*x + beta2*x^2 + rnorm(n = nObs, mean = 0, sd = sqrt(sigma2e))
+
+# make one value of X missing
+x[sample(x = 1:nObs, size = nMiss, replace = FALSE)] = NA
+x[1]= NA
+# show plot
+plot(x = x, y = y)
+
+model01.function = function(){
+  for (i in 1:N){
+    x[i] ~ dnorm(meanX, sigma2.invX)
+    y[i] ~ dnorm(beta0+beta1*x[i], sigma2.inv)
+  }
+  
+  sigma2.invX ~ dgamma(1000, 2)
+  sigma2.inv ~ dgamma(4, 8)
+  sigma2 <- 1/sigma2.inv 
+  sigma2X <- 1/sigma2.inv 
+  beta0 ~ dnorm(0, .00001)
+  meanX ~ dnorm(0, .00001)
+  beta1 ~ dnorm(0, .00001)
+}
+
+# next, create data for JAGS to use:
+model01.data = list(
+  N = length(x),
+  x = x,
+  y = y
+)
+
+model01.parameters = c("beta0", "beta1", "sigma2", "sigma2X", "meanX", "x", "y")
+
+model01.seed = 23042019
+
+model01.r2jags =  jags.parallel(
+  data = model01.data,
+  parameters.to.save = model01.parameters,
+  model.file = model01.function,
+  n.chains = 4,
+  n.iter = 2000,
+  n.thin = 1,
+  n.burnin = 1000,
+  jags.seed = model01.seed
+)
+
+model01.r2jags
+denplot(model01.r2jags, parms = "beta1")
+model01.r2jags$BUGSoutput$sims.matrix[,6]
+
+colnames(model01.r2jags$BUGSoutput$sims.matrix)
+plot(x = model01.r2jags$BUGSoutput$sims.matrix[501, 7:1006],
+     y = model01.r2jags$BUGSoutput$sims.matrix[501, 1007:2006])
+```
+
 
 ## Missing Item Response Example
 
@@ -283,6 +363,7 @@ Here is the plot of the posterior distribution of the data (these are the impute
 
 ```{r plothist}
 hist(model03.r2jags$BUGSoutput$sims.matrix[,which(colnames(model03.r2jags$BUGSoutput$sims.matrix)=="item1[4]")])
+conspiracy[1:10,1:3]
 ```
 
 And look at how the posterior distribution of $\theta_p$ changes by removing that one observation. The dashed line is the posterior distribution from an observation with the same response pattern but complete data.

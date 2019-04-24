@@ -1,0 +1,54 @@
+TITLE:  Model 1: Multivariate Longitudinal Model as Multivariate MLM/SEM
+DATA:   FILE = Chapter9.csv;   ! Syntax in same folder as data
+VARIABLE:
+! List of variables in data file
+  NAMES = PersonID occasion risky age18 att4 mon3 agesq;
+! Variables to be analyzed in this model
+  USEVARIABLE = age18 agesq att4 risky mon3;
+  MISSING ARE ALL (-999);   ! Missing data identifier
+! MLM options
+  CLUSTER = PersonID;       ! Level-2 ID
+  BETWEEN = att4;           ! Observed ONLY level-2 predictors
+  WITHIN  = age18 agesq;    ! Observed ONLY level-1 predictors
+
+ANALYSIS:   TYPE = TWOLEVEL RANDOM; ESTIMATOR = ML; 
+
+MODEL:  ! R = risky behavior, M = monitoring
+%WITHIN%
+ Risky Mon3 (Rresvar Mresvar);   ! L1 R: Residual variances (labels)
+ Rslp  | Risky ON age18;         ! Placeholder for R linear age slope
+ Rquad | Risky ON agesq;         ! Placeholder for R quadratic age slope
+ Mslp  | Mon3  ON age18;         ! Placeholder for M linear age slope
+ Risky WITH Mon3 (ResCov);       ! L1 R: Residual covariance
+
+%BETWEEN%
+[Risky Mon3];                    ! Fixed intercepts
+ Risky Mon3  (Rintvar Mintvar);  ! L2 G: Random intercept variances (labels)
+[Rquad Rslp Mslp];               ! Fixed age slopes (as defined earlier)
+ Rslp Mslp   (Rslpvar Mslpvar);  ! L2 G: Random linear age slope variances
+ Rquad@0;                        ! No quadratic age slope variance
+ 
+ Risky Rslp ON att4;             ! Att-> R int, linear age slope
+ Risky WITH Rslp  (RIntSlp);     ! R Int-slope covariance (label)
+ Mon3  WITH Mslp  (MIntSlp);     ! M Int-slope covariance (label)
+
+ Risky WITH Mon3  (IntCov);      ! L2 G: Random intercept covariance
+ Rslp  WITH Mslp  (SlpCov);      ! L2 G: Random linear age slope covariance
+ Mon3  WITH Rslp  (Int2Slp);     ! L2 G: M int, R slope covariance
+ Mslp  WITH Risky (Slp2Int);     ! L2 G: M slope, R int covariance
+
+MODEL CONSTRAINT:  ! Like ESTIMATE in SAS, but can refer to any parameter 
+! Need to name each new created effect -- correlations here
+NEW(ResCor IntCor SlpCor RIScor MIScor I2SCor S2ICor);
+! Estimating correlations found in SAS RCORR and GCORR
+  ResCor = ResCov  / (SQRT(Rresvar)*SQRT(Mresvar));
+  IntCor = IntCov  / (SQRT(Rintvar)*SQRT(Mintvar));
+  SlpCor = SlpCov  / (SQRT(Rslpvar)*SQRT(Mslpvar));
+  RIScor = RIntSlp / (SQRT(Rintvar)*SQRT(Rslpvar));
+  MIScor = MIntSlp / (SQRT(Mintvar)*SQRT(Mslpvar));
+  I2Scor = Int2Slp / (SQRT(Mintvar)*SQRT(Rslpvar));
+  S2Icor = Slp2Int / (SQRT(Mslpvar)*SQRT(Rintvar));
+
+
+
+

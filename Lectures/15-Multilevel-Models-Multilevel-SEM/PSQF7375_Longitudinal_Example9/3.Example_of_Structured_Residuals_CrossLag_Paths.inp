@@ -1,0 +1,75 @@
+TITLE:  Model 3: Example of Structured Residuals to Fit Cross-Lag Effects
+
+DATA:   FILE = Chapter9.csv;   ! Syntax in same folder as data
+! Unstacking to multivariate format
+DATA LONGTOWIDE:
+! Names of old stacked former variables (without numbers)
+  LONG = risky|mon|age;  
+! Names of new multivariate variables (that use numbers)
+  WIDE = risky12-risky18|mon12-mon18|age12-age18; 
+! Variable with level-2 ID info 
+  IDVARIABLE = PersonID;       
+! Old level-1 identifier        
+  REPETITION = occasion (12 13 14 15 16 17 18);
+
+VARIABLE:
+! List of variables in original data file
+  NAMES = PersonID occasion risky age att4 mon agesq;
+! Variables to be analyzed in this model
+  USEVARIABLE = att4 risky12-risky18 mon12-mon18 age12-age18;
+  MISSING ARE ALL (-999);   ! Missing data identifier
+  TSCORES = age12-age18;    ! Exact time indicator
+
+ANALYSIS:   TYPE = RANDOM; ESTIMATOR = ML; MODEL = NOCOVARIANCES;
+MODEL:  ! R = risky behavior, M = monitoring
+[risky12-risky18@0 mon12-mon18@0]; ! All variable intercepts fixed to 0
+
+! Risky behavior quadratic growth model using exact age as loadings
+  Rint Rslp Rquad | risky12-risky18 AT age12-age18;
+! Monitoring linear growth model using exact age as loadings
+  Mint Mslp | mon12-mon18 AT age12-age18;
+! Fixed growth effects for R and M
+  [Rint Rslp Rquad Mint Mslp];            
+! L2 G: Random int and linear age slope variances, no quad age variance
+  Rint Rslp Rquad@0 Mint Mslp;  
+! L2 G: Within-variable random int-slope covariances for R, M            
+  Rint WITH Rslp; Mint WITH Mslp;    
+! Attitudes --> risky int, linear slope
+  Rint Rslp ON att4;             
+ 
+! L2 G: covariances for random intercepts and slopes across outcomes
+  Rint Rslp WITH Mint Mslp;     
+
+! Define new latent factors for residuals at each occasion
+  Frisky12 BY risky12@1; 
+  Frisky13 BY risky13@1; 
+  Frisky14 BY risky14@1; 
+  Frisky15 BY risky15@1; 
+  Frisky16 BY risky16@1; 
+  Frisky17 BY risky17@1; 
+  Frisky18 BY risky18@1; 
+  Fmon12 BY mon12@1;
+  Fmon13 BY mon13@1;
+  Fmon14 BY mon14@1;
+  Fmon15 BY mon15@1;
+  Fmon16 BY mon16@1;
+  Fmon17 BY mon17@1;
+  Fmon18 BY mon18@1;
+
+! All factor means fixed to 0
+  [Frisky12-Frisky18@0  Fmon12-Fmon18@0];  
+
+! Shut off old residual variances
+  risky12-risky18@0 mon12-mon18@0;
+! Hold new residual variances equal over time  
+  Frisky12-Frisky18 (Rresvar); ! L1 R: R residual variances held equal
+  Fmon12-Fmon18     (Mresvar); ! L1 R: M residual variances held equal
+
+! Factor residual WP effect between same ages, held equal across age
+  Frisky12-Frisky18 PWITH Fmon12-Fmon18     (ResCov);  
+
+! Cross-lag WP effects predicting next age, held equal across age
+  Frisky13-Frisky18 PON   Fmon12-Fmon17     (MR2RR);
+  Fmon13-Fmon18     PON   Frisky12-Frisky17 (RR2MR);
+
+ 
