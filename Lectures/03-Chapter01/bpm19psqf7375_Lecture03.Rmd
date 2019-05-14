@@ -1,7 +1,7 @@
 ---
 title: 'Chapter 1: Overview of Assessment and Psychometric Modeling'
 author: "Bayesian Psychometric Models, Lecture 3"
-output: html_document
+output: pdf_document
 ---
 
 
@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Toulmin Diagrams
 
-![Deductive Reasoning: Data $\rightarrow$ Claim; Inductive Reasoning: Claim $\rightarrow Data](images/figure1.3.png)
+![Deductive Reasoning: Data $\rightarrow$ Claim; Inductive Reasoning: Claim $\rightarrow$ Data](images/figure1.3.png)
 
 ## Reasoning with Bayesian Statistics
 

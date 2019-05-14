@@ -1,7 +1,7 @@
 ---
 title: 'Lecture 14: Mixture Models'
 author: "Bayesian Psychometric Modeling"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup}

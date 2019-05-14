@@ -1,7 +1,7 @@
 ---
 title: 'Chapter 2: Introduction to Bayesian Inference'
 author: "Bayesian Psychometric Models, Lecture 4"
-output: html_document
+output: pdf_document
 ---
 <!-- Replace output: line in header with these for different formatting options: -->
 <!-- output: slidy_presentation --> 

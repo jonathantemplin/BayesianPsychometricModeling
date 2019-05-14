@@ -1,7 +1,7 @@
 ---
 title: 'Chapter 3: Conceptual Issues in Bayesian Inference'
 author: "Bayesian Psychometric Modeling, Lecture 6"
-output: html_document
+output: pdf_document
 ---
 
 ## Highlights of Chapter

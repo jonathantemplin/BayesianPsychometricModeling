@@ -1,7 +1,7 @@
 ---
 title: "Introduction to JAGS"
 author: "Bayesian Psychometric Models, Lecture 5"
-output: html_document
+output: pdf_document
 ---
 
 JAGS stands for Just Another Gibbs Sampler and is a program that can build a large number of Bayesian models.

@@ -1,7 +1,7 @@
 ---
 title: 'Lecture 12: Polytomous IRT Models'
 author: "Bayesian Psychometric Modeling"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup}
@@ -642,12 +642,12 @@ model03.function = function(){
     for (item in 1:I){
       
       # create parameters that are unbounded, then sort
-      for (cat in 2:(C[item])){
-        b[item, cat] ~ dnorm(b.mean.0, b.precision.0)  
-        a[item, cat] ~ dnorm(a.mean.0, a.precision.0)
+      for (cat in 1:(C[item]-1)){
+        b[item, cat+1] ~ dnorm(b.mean.0, b.precision.0)  
+        a[item, cat+1] ~ dnorm(a.mean.0, a.precision.0)
       }
-      b[item, C[1]] <- 0
-      a[item, C[1]] <- 0
+      b[item, 1] <- 0
+      a[item, 1] <- 0
       
     }
     

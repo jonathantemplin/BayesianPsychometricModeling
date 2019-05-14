@@ -1,7 +1,7 @@
 ---
 title: 'An Introduction to Git, RStudio, and R Markdown'
 author: "Bayesian Psychometric Models, Lecture 2"
-output: html_document
+output: pdf_document
 ---
 <!-- Replace output: line in header with these for different formatting options: -->
 <!-- output: slidy_presentation --> 

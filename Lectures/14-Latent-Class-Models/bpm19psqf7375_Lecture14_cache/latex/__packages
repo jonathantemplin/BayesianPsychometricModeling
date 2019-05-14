@@ -1,0 +1,15 @@
+base
+methods
+datasets
+utils
+grDevices
+graphics
+stats
+coda
+rjags
+R2jags
+mvtnorm
+CDM
+MASS
+MCMCpack
+mcmcplots

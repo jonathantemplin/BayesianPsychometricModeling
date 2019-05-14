@@ -1,7 +1,7 @@
 ---
 title: "MCMC Algorithms"
 author: "Bayesian Psychometric Models, Lecture 8"
-output: html_document
+output: pdf_document
 ---
 
 $\renewcommand{\hat}[1]{\widehat{#1}}$ <!-- needed to fix hat display on some browsers -->
@@ -14,7 +14,7 @@ A benefit of conjugate priors is that posterior distributions can be derived ana
 
 The classic linear model is one where, for a respondent $r$ $(r = 1, \dots, N)$, a dependent variable (or outcome), $y_r$, is predicted via a set of independent variables (or predictors), $x_{rv}$ where $v = 1, \dots, V$ and, sometimes, their interactive product, by means of a set of regression coefficients $\beta_v$:
 
-$$Y_r = \beta_0 + \beta_1 x_{r1} + \beta_2 x_{r2} + \dots + \beta_V x_{rV} + e_r = \mathbf{x}_r \boldsymbol{\beta} + e_r$$
+$$Y_r = \beta_0 + \beta_1 x_{r1} + \beta_2 x_{r2} + \dots + \beta_V x_{rV} + e_r = \boldsymbol{x}_r \boldsymbol{\beta} + e_r$$
 
 Here, $e_r$ is the residual or error term for respondent $r$, with $e_r \sim N(0, \sigma^2_e)$.
 
@@ -24,20 +24,20 @@ $$ Y_r = \beta_0 + \beta_{Height}x_{Height,r} + \beta_{Group2}x_{Group2, r}
 + \beta_{Group3}x_{Group3, r} + \beta_{Height*Group2}x_{Height,r}x_{Group2, r} 
 + \beta_{Height*Group3}x_{Height,r}x_{Group3, r} + e_r$$
 
-The right-hand side is the vector notation of the regression equation for a single respondent, with $\boldsymbol{\beta} = \left[\beta_0, \beta_1, \dots, \beta_V \right]^T$ a vector of regression coefficients with size $(V+1) \times 1$ and $\mathbf{x}_r = \left[1, x_{r1}, \dots, x_{rV} \right]$ a vector of a constant of 1 (for multiplying the intercept $\beta_0$) and $V$ predictors, for a size of  $1 \times (V+1)$. 
+The right-hand side is the vector notation of the regression equation for a single respondent, with $\boldsymbol{\beta} = \left[\beta_0, \beta_1, \dots, \beta_V \right]^T$ a vector of regression coefficients with size $(V+1) \times 1$ and $\boldsymbol{x}_r = \left[1, x_{r1}, \dots, x_{rV} \right]$ a vector of a constant of 1 (for multiplying the intercept $\beta_0$) and $V$ predictors, for a size of  $1 \times (V+1)$. 
 
 When put together across all respondents, we get a common matrix format of the linear model that we will use to build the Bayesian Linear Model under Gibbs Sampling and Metropolis-Hastings:
 
-$$ \mathbf{Y} = \mathbf{X}\boldsymbol{\beta} + \mathbf{e}$$
+$$ \boldsymbol{Y} = \boldsymbol{X}\boldsymbol{\beta} + \boldsymbol{e}$$
 
 Here: 
 
-- $\mathbf{Y}$ is size $N \times 1$
-- $\mathbf{X}$ is size $N \times (V+1)$, with the first column being full of 1s
+- $\boldsymbol{Y}$ is size $N \times 1$
+- $\boldsymbol{X}$ is size $N \times (V+1)$, with the first column being full of 1s
 - $\boldsymbol{\beta}$ is size $(V+1) \times 1$
-- $\mathbf{e}$ is size $N \times 1$ and $\mathbf{e} \sim MVN \left(\mathbf{0}, \boldsymbol{\Sigma}_e = \sigma^2_e \mathbf{I}_{(N \times N)} \right)$, where:
+- $\boldsymbol{e}$ is size $N \times 1$ and $\boldsymbol{e} \sim MVN \left(\boldsymbol{0}, \boldsymbol{\Sigma}_e = \sigma^2_e \boldsymbol{I}_{(N \times N)} \right)$, where:
 
-    - $\mathbf{I}_{(N \times N)}$ is an $(N \times N)$-sized identity matrix
+    - $\boldsymbol{I}_{(N \times N)}$ is an $(N \times N)$-sized identity matrix
     
 ## Bayesian Estimation of Model for Example Data
 
@@ -48,22 +48,22 @@ Before we dive into how the algorithms work, we will first examine how to estima
 
 ### Likelihood Function
 
-Using the general matrix form of the model $\mathbf{Y} = \mathbf{X}\boldsymbol{\beta} + \mathbf{e}$, express the likelihood function:
+Using the general matrix form of the model $\boldsymbol{Y} = \boldsymbol{X}\boldsymbol{\beta} + \boldsymbol{e}$, express the likelihood function:
 
-Here, note the determinant of $\left| \Sigma_e \right| = \left| \sigma^2_e \mathbf{I} \right| = \left| \sigma^2_e \right| \left| \mathbf{I} \right| =\left( \sigma^2_e\right)^N = \sigma^{2N}_e$
+Here, note the determinant of $\left| \Sigma_e \right| = \left| \sigma^2_e \boldsymbol{I} \right| = \left| \sigma^2_e \right| \left| \boldsymbol{I} \right| =\left( \sigma^2_e\right)^N = \sigma^{2N}_e$
 
-$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) = \frac{1}{\sqrt{\left(2 \pi \right)^V \left| \sigma^2_e \mathbf{I} \right|} }
-\exp \left( \frac{1}{2} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \sigma^2_e \mathbf{I} \right)^{-1} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right) = \left( 2\pi \right)^{-\frac{V}{2}} \left(\sigma^2\right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} $$
+$$f(\boldsymbol{Y}|\boldsymbol{X}, \boldsymbol{\beta}, \sigma^2_e) = \frac{1}{\sqrt{\left(2 \pi \right)^V \left| \sigma^2_e \boldsymbol{I} \right|} }
+\exp \left( \frac{1}{2} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \sigma^2_e \boldsymbol{I} \right)^{-1} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) \right) = \left( 2\pi \right)^{-\frac{V}{2}} \left(\sigma^2\right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) \right)} $$
 
 Often, the normalizing constants are removed, which leaves:
-$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left(\sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} $$
+$$f(\boldsymbol{Y}|\boldsymbol{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left(\sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) \right)} $$
 
 
-We will come back to this distribution later for now, please note that because $\boldsymbol{\Sigma}_e = \sigma^2_e \mathbf{I}_{(N \times N)}$, an equivalent expression is possible using a series of independent univariate normal distributions:
+We will come back to this distribution later for now, please note that because $\boldsymbol{\Sigma}_e = \sigma^2_e \boldsymbol{I}_{(N \times N)}$, an equivalent expression is possible using a series of independent univariate normal distributions:
 
-$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) = \prod_{r=1}^N \frac{1}{\sqrt{2\pi\sigma^2_e}} \exp{\left(\frac{-(Y_r - \mathbf{X}_r \boldsymbol{\beta})^2 }{2\sigma^2_e}\right)}$$
+$$f(\boldsymbol{Y}|\boldsymbol{X}, \boldsymbol{\beta}, \sigma^2_e) = \prod_{r=1}^N \frac{1}{\sqrt{2\pi\sigma^2_e}} \exp{\left(\frac{-(Y_r - \boldsymbol{X}_r \boldsymbol{\beta})^2 }{2\sigma^2_e}\right)}$$
 
-Alternatively, $\left(Y_r | \mathbf{X}_r, \boldsymbol{\beta}, \sigma^2_e \right) \sim N\left(\mathbf{X}_r \boldsymbol{\beta}, \sigma^2_e \right)$.
+Alternatively, $\left(Y_r | \boldsymbol{X}_r, \boldsymbol{\beta}, \sigma^2_e \right) \sim N\left(\boldsymbol{X}_r \boldsymbol{\beta}, \sigma^2_e \right)$.
 
 ### Prior Distributions
 
@@ -75,18 +75,18 @@ $$f\left(\boldsymbol{\beta}, \sigma^2_e \right) = f\left( \boldsymbol{\beta} \mi
 
 Further, we can start to see how a conjugate prior may look by altering the likelihood function slightly by noting that:
 
-$$\left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) =
-\left( \mathbf{Y} - \mathbf{X}\hat{\boldsymbol{\beta}} \right)^T \left( \mathbf{Y} - \mathbf{X}\hat{\boldsymbol{\beta}} \right) + 
-\left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\mathbf{X}^T\mathbf{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)
+$$\left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) =
+\left( \boldsymbol{Y} - \boldsymbol{X}\hat{\boldsymbol{\beta}} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\hat{\boldsymbol{\beta}} \right) + 
+\left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\boldsymbol{X}^T\boldsymbol{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)
 $$
 
-Where $\hat{\boldsymbol{\beta}}$ is the result of the solution to the "normal equations" consisting only of \mathbf{Y} and \mathbf{X}:
+Where $\hat{\boldsymbol{\beta}}$ is the result of the solution to the "normal equations" consisting only of $\boldsymbol{Y}$ and $\boldsymbol{X}$:
 
-$$ \hat{\boldsymbol{\beta}} = \left(\mathbf{X}^T\mathbf{X} \right)^{-1} \mathbf{X}^T \mathbf{Y}$$
+$$ \hat{\boldsymbol{\beta}} = \left(\boldsymbol{X}^T\boldsymbol{X} \right)^{-1} \boldsymbol{X}^T \boldsymbol{Y}$$
 
 This leads to a rewritten likelihood function of:
-$$ f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left( \sigma^2_e\right)^{-\frac{\nu}{2}} \exp\left( - \frac{\nu \sigma^2_0}{2\sigma_e^2}\right)
-      \left( \sigma^2_e\right)^{-\frac{N-\nu}{2}} \exp \left( - \frac{1}{2\sigma^2_e} \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\mathbf{X}^T\mathbf{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)\right)
+$$ f(\boldsymbol{Y}|\boldsymbol{X}, \boldsymbol{\beta}, \sigma^2_e) \propto \left( \sigma^2_e\right)^{-\frac{\nu}{2}} \exp\left( - \frac{\nu \sigma^2_0}{2\sigma_e^2}\right)
+      \left( \sigma^2_e\right)^{-\frac{N-\nu}{2}} \exp \left( - \frac{1}{2\sigma^2_e} \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}}\right)^T\left(\boldsymbol{X}^T\boldsymbol{X} \right) \left(\boldsymbol{\beta} - \hat{\boldsymbol{\beta}} \right)\right)
 $$
 Where $\nu = N-V$.
 
@@ -97,22 +97,22 @@ $$
 
 The inverse-gamma distribution is often notated with parameters $\alpha$ and $\beta$. Here, $\alpha = \frac{\nu_0}{2}$ and $\beta = \frac{1}{2} \nu_0 \sigma^2_0$ where $\nu_0$ and $\sigma^2_0$ are the prior values of the denominator degrees of freedom and estimated residual variance.
 
-For  \boldsymbol{\beta}, the conditional prior is a multivariate normal distribution with prior mean $\boldsymbol{\mu}_0$ and prior covariance matrix $\Sigma_0$.
+For $\boldsymbol{\beta}$, the conditional prior is a multivariate normal distribution with prior mean $\boldsymbol{\mu}_0$ and prior covariance matrix $\Sigma_0$.
 
 $$f\left( \boldsymbol{\beta} \mid \sigma^2_e \right) \propto  \left( \sigma^2_e\right)^{-\frac{V}{2}} \exp \left( -\frac{1}{2\sigma^2_e} \left(\boldsymbol{\beta} - \boldsymbol{\mu}_0\right)^T \Sigma_0^{-1} \left(\boldsymbol{\beta} - \boldsymbol{\mu}_0\right) \right)  $$
 
 
 ### Posterior Distribution with Conjugate Priors
 
-The posterior distribution becomes a mess, but it can be summarized by looking first at $\sigma^2_e$ and the at $\boldsymbol{\beta}$. The entire derivation won't be provided, however, the joint posterior distribution $f\left(\boldsymbol{\beta}, \sigma^2_e \mid \mathbf{Y}, \mathbf{X} \right)$ is a product of inverse-gamma and normal distributions.
+The posterior distribution becomes a mess, but it can be summarized by looking first at $\sigma^2_e$ and the at $\boldsymbol{\beta}$. The entire derivation won't be provided, however, the joint posterior distribution $f\left(\boldsymbol{\beta}, \sigma^2_e \mid \boldsymbol{Y}, \boldsymbol{X} \right)$ is a product of inverse-gamma and normal distributions.
 
 For each derivation outline, we must take the product of the prior and data likelihoods, factor them, then figure out the form of the posterior. 
 
 #### Fun Fact About Multivariate Normal Distributions
 
-It can be shown that a random vector $\mathbf{z}$ follows a multivariate normal distribution with mean $\mathbf{m}$ and covariance matrix $\mathbf{V}$ if and only if 
+It can be shown that a random vector $\boldsymbol{z}$ follows a multivariate normal distribution with mean $\boldsymbol{m}$ and covariance matrix $\boldsymbol{V}$ if and only if 
 
-$$ f \left(\mathbf{z} \mid \mathbf{m, V} \right) \propto \exp\left(-\frac{1}{2} \left(\mathbf{z}^T \mathbf{V}^{-1}\mathbf{z} - 2 \mathbf{z}^T  \mathbf{V}^{-1} \mathbf{m}\right) \right)$$
+$$ f \left(\boldsymbol{z} \mid \boldsymbol{m, V} \right) \propto \exp\left(-\frac{1}{2} \left(\boldsymbol{z}^T \boldsymbol{V}^{-1}\boldsymbol{z} - 2 \boldsymbol{z}^T  \boldsymbol{V}^{-1} \boldsymbol{m}\right) \right)$$
 
 #### Outline of Derivation of Posterior for $\boldsymbol{\beta}$
 
@@ -122,7 +122,7 @@ $$ f\left( \boldsymbol{\beta} \mid \sigma^2_e \right) = \left|2\pi \boldsymbol{\
 
 The data likelihood for $\boldsymbol{\beta}$ is:
 
-$$f(\mathbf{Y}|\mathbf{X}, \boldsymbol{\beta}, \sigma^2_e) = \left(2 \pi \sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} $$
+$$f(\boldsymbol{Y}|\boldsymbol{X}, \boldsymbol{\beta}, \sigma^2_e) = \left(2 \pi \sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) \right)} $$
 
 As $\boldsymbol{\beta}$ only exists in the exponents, we can work with those exclusively. For the prior distribution:
 
@@ -133,65 +133,65 @@ $$ \left(\boldsymbol{\beta} - \boldsymbol{\beta}_0\right)^T \boldsymbol{\Sigma}_
 
 For the data:
 
-$$ \frac{1}{\sigma^2_e}\left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) =
-    \frac{\mathbf{Y}^T\mathbf{Y}}{\sigma^2_e} - \frac{2 \boldsymbol{\beta}^T\mathbf{X}^T\mathbf{Y}}{\sigma^2_e} + 
-    \frac{\boldsymbol{\beta}^T\mathbf{X}^T \mathbf{X}\boldsymbol{\beta}}{\sigma^2_e}
+$$ \frac{1}{\sigma^2_e}\left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) =
+    \frac{\boldsymbol{Y}^T\boldsymbol{Y}}{\sigma^2_e} - \frac{2 \boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e} + 
+    \frac{\boldsymbol{\beta}^T\boldsymbol{X}^T \boldsymbol{X}\boldsymbol{\beta}}{\sigma^2_e}
 $$
 
 The product (which is a sum in the exponent):
 
 $$\left( \boldsymbol{\beta}^T \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta} - 2\boldsymbol{\beta}^T\boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0 +
-   \boldsymbol{\beta}^T_0 \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0\right) + \left( \frac{\mathbf{Y}^T\mathbf{Y}}{\sigma^2_e} - \frac{2 \boldsymbol{\beta}^T\mathbf{X}^T\mathbf{Y}}{\sigma^2_e} + 
-    \frac{\boldsymbol{\beta}^T\mathbf{X}^T \mathbf{X}\boldsymbol{\beta}}{\sigma^2_e} \right) $$
+   \boldsymbol{\beta}^T_0 \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0\right) + \left( \frac{\boldsymbol{Y}^T\boldsymbol{Y}}{\sigma^2_e} - \frac{2 \boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e} + 
+    \frac{\boldsymbol{\beta}^T\boldsymbol{X}^T \boldsymbol{X}\boldsymbol{\beta}}{\sigma^2_e} \right) $$
 
 Removing the terms that do not depend on $\boldsymbol{\beta}$ and rearranging terms leaves:
 
 $$ \boldsymbol{\beta}^T \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta} + 
-    \frac{\boldsymbol{\beta}^T\mathbf{X}^T \mathbf{X}\boldsymbol{\beta}}{\sigma^2_e} 
+    \frac{\boldsymbol{\beta}^T\boldsymbol{X}^T \boldsymbol{X}\boldsymbol{\beta}}{\sigma^2_e} 
     - 2\boldsymbol{\beta}^T\boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0 +
-    - \frac{2 \boldsymbol{\beta}^T\mathbf{X}^T\mathbf{Y}}{\sigma^2_e}   
+    - \frac{2 \boldsymbol{\beta}^T\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e}   
     $$
 
 Then, combining like terms for the first two parts and the second two parts leaves:
 
 $$
-\boldsymbol{\beta}^T \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\mathbf{X}^T \mathbf{X}}{\sigma^2_e}  \right) \boldsymbol{\beta} 
- - 2\boldsymbol{\beta}^T \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\mathbf{X}^T\mathbf{Y}}{\sigma^2_e}   \right)
+\boldsymbol{\beta}^T \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\boldsymbol{X}^T \boldsymbol{X}}{\sigma^2_e}  \right) \boldsymbol{\beta} 
+ - 2\boldsymbol{\beta}^T \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e}   \right)
 $$
 
 This fits the MVN pattern shown above where $\boldsymbol{\beta}$ follows a multivariate normal distribution with inverse variance:
 
-$$\boldsymbol{\Sigma}_n^{-1} = \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\mathbf{X}^T \mathbf{X}}{\sigma^2_e}  \right), $$
+$$\boldsymbol{\Sigma}_n^{-1} = \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\boldsymbol{X}^T \boldsymbol{X}}{\sigma^2_e}  \right), $$
 
 and variance inverse times mean: 
 
-$$\boldsymbol{\Sigma}_n^{-1} \boldsymbol{\beta}_n = \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\mathbf{X}^T\mathbf{Y}}{\sigma^2_e}   \right) $$
+$$\boldsymbol{\Sigma}_n^{-1} \boldsymbol{\beta}_n = \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e}   \right) $$
 
 Therefore the mean vector is:
-$$\boldsymbol{\beta}_n = \boldsymbol{\Sigma}_n^{-1} \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\mathbf{X}^T\mathbf{Y}}{\sigma^2_e}   \right) =
- \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\mathbf{X}^T \mathbf{X}}{\sigma^2_e}  \right)\left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\mathbf{X}^T\mathbf{Y}}{\sigma^2_e}   \right)
+$$\boldsymbol{\beta}_n = \boldsymbol{\Sigma}_n^{-1} \left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e}   \right) =
+ \left( \boldsymbol{\Sigma}_0^{-1} + \frac{\boldsymbol{X}^T \boldsymbol{X}}{\sigma^2_e}  \right)\left( \boldsymbol{\Sigma}_0^{-1} \boldsymbol{\beta}_0  + \frac{\boldsymbol{X}^T\boldsymbol{Y}}{\sigma^2_e}   \right)
 $$
 
 The posterior distribution for $\boldsymbol{\beta}$ conditional on $\sigma^2_e$ is normal, with mean $\bar{\boldsymbol{\beta}}$ and variance $\boldsymbol{\Sigma}_\beta$:
 
-$$\bar{\boldsymbol{\beta}} = \left(\Sigma_0^{-1} + \mathbf{X}^T\mathbf{X} \right)^{-1}\left(\Sigma_0^{-1} \boldsymbol{\beta}_0  +  \mathbf{X}^T\mathbf{Y} \right)$$
+$$\bar{\boldsymbol{\beta}} = \left(\Sigma_0^{-1} + \boldsymbol{X}^T\boldsymbol{X} \right)^{-1}\left(\Sigma_0^{-1} \boldsymbol{\beta}_0  +  \boldsymbol{X}^T\boldsymbol{Y} \right)$$
 
 #### Derivation of Posterior for $\sigma^2_e$
 
 The product of prior times data likelihood for $\sigma^2_e$ is:
 
 
-$$f(\sigma^2_e | \boldsymbol{\beta}, \mathbf{X}, \mathbf{Y} ) \propto  \left[ \left( \sigma^2_e\right)^{-\frac{\nu_0}{2} +1} \exp\left( - \frac{\nu_0 \sigma^2_0}{2\sigma_e^2}\right) \right] \times \left[ \left( \sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right) \right)} \right]
+$$f(\sigma^2_e | \boldsymbol{\beta}, \boldsymbol{X}, \boldsymbol{Y} ) \propto  \left[ \left( \sigma^2_e\right)^{-\frac{\nu_0}{2} +1} \exp\left( - \frac{\nu_0 \sigma^2_0}{2\sigma_e^2}\right) \right] \times \left[ \left( \sigma^2_e \right)^{-\frac{N}{2}} \exp{\left(- \frac{1}{2\sigma^2_e} \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right) \right)} \right]
 $$
 
 
-$$ = \left( \sigma^2_e\right)^{-\frac{\nu_0 - N}{2}} \exp\left( - \frac{\nu_0 \sigma^2_0 +  \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T \left( \mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)}{2\sigma_e^2} \right)
+$$ = \left( \sigma^2_e\right)^{-\frac{\nu_0 - N}{2}} \exp\left( - \frac{\nu_0 \sigma^2_0 +  \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T \left( \boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)}{2\sigma_e^2} \right)
 $$
 
 This is the form of an inverse gamma distribution, so the posterior distribution for $\sigma^2_e$ is inverse gamma, with: 
 
 $$\alpha_n = \frac{\nu_0+N}{2}$$
-$$\beta_n = \frac{\nu_0 \sigma^2_{0} + \left(\mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)^T\left(\mathbf{Y} - \mathbf{X}\boldsymbol{\beta} \right)}{2}$$
+$$\beta_n = \frac{\nu_0 \sigma^2_{0} + \left(\boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)^T\left(\boldsymbol{Y} - \boldsymbol{X}\boldsymbol{\beta} \right)}{2}$$
 
 
 #### Side Note: When You Read "Assuming Known $\sigma^2_e$"

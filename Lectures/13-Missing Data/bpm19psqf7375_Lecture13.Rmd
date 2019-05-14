@@ -1,7 +1,7 @@
 ---
 title: 'Lecture 13: Missing Data via Bayesian'
 author: "Bayesian Psychometric Modeling"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup}

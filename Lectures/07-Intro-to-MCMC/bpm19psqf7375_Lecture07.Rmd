@@ -1,8 +1,12 @@
 ---
 title: "Introduction to MCMC"
 author: "Bayesian Psychometric Models, Lecture 7"
-output: html_document
+output: pdf_document
 ---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
 
 ```{r InstallLoadPackages, echo=FALSE, include=FALSE}
 needed_packages = c("invgamma", "ggplot2", "rjags", "R2jags", "HDInterval")
@@ -245,18 +249,31 @@ sigma2 = seq(minX, maxX, step)
 height = dinvgamma(x = sigma2, shape = alpha.0, rate = beta.0)
 heightU = dinvgamma(x = sigma2, shape = alpha.0.U, rate = beta.0.U)
 
-matplot(x = cbind(sigma2, sigma2), y = cbind(height, heightU), type = "l", ylab = expression(paste("f(", sigma[e]^2, ")")), xlab = expression(sigma[e]^2),
-        main = "Red is uninformative prior; black is prior based on suggestion in book")
-
-matplot(x = cbind(sigma2, sigma2), y = cbind(height, heightU), type = "l", ylab = expression(paste("f(", sigma[e]^2, ")")), xlab = expression(sigma[e]^2),
-        main = "Same Funciton: Close Up Near Original Prior", xlim = c(0,qinvgamma(.995, shape = alpha.0, rate= beta.0) ))
-
+matplot(
+  x = cbind(sigma2, sigma2),
+  y = cbind(height, heightU),
+  type = "l",
+  ylab = expression(paste("f(", sigma[e] ^ 2, ")")),
+  xlab = expression(sigma[e] ^ 2),
+  main = "Red is uninformative prior; black is prior based on suggestion in book"
+)
+  
+matplot(
+  x = cbind(sigma2, sigma2),
+  y = cbind(height, heightU),
+  type = "l",
+  ylab = expression(paste("f(", sigma[e] ^ 2, ")")),
+  xlab = expression(sigma[e] ^ 2),
+  main = "Same Funciton: Close Up Near Original Prior",
+  xlim = c(0, qinvgamma(.995, shape = alpha.0, rate = beta.0))
+)
+  
 
 ```
 
 #### Prior for $\boldsymbol{\beta}$
 
-Conditional on a value of of $\sigma^2_e$, the conjugate prior for $\boldsymbol{\beta}$ follows a multivariate normal distribution: $\boldsymbol{\beta} \sim MVN\left(\bar{\boldsymbol{\beta}}, \boldsymbol{\Sigma}_\boldsymbol{\beta}\right)$. Often, this is expressed as a set of independent univariate priors where the mean for each $\beta$ is given along with some type of variance. That said, the use of normal priors in JAGS uses precision instead of variance (so 1/variance). 
+Conditional on a value of of $\sigma^2_e$, the conjugate prior for $\boldsymbol{\beta}$ follows a multivariate normal distribution: $\boldsymbol{\beta} \sim MVN\left(\bar{\boldsymbol{\beta}}, \boldsymbol{\Sigma}_{\boldsymbol{\beta}}\right)$. Often, this is expressed as a set of independent univariate priors where the mean for each $\beta$ is given along with some type of variance. That said, the use of normal priors in JAGS uses precision instead of variance (so 1/variance). 
 
 These priors can be made to be uninformative by selecting very low values for precision (meaning very high levels of variance). Remember, 99% of the mass of a univariate normal distribution falls within +/- 3SD. 
 
@@ -425,7 +442,7 @@ After the model runs, the next step is to assess convergence of the chains to th
 plot(BayesianFullModel.Posterior) 
 
 # using convegence diagnostics:
-gelman.diag(BayesianFullModel.Posterior) 
+gelman.diag(BayesianFullModel.Posterior, multivariate = FALSE) 
 
 # checking autocorrelation: very low for lag 1
 autocorr.diag(BayesianFullModel.Posterior) 
@@ -530,12 +547,12 @@ Reasons for differences: $\sigma^2_e$. Note that the values reported above are t
 #     install.packages("BiocManager")
 # BiocManager::install("genefilter", version = "3.8")
 # if (!requireNamespace("modeest")) install.packages("modeest")
-library(modeest)
+# library(modeest)
 
-mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
-mean(BayesianFullModel.Posterior.All[,10])
-
-summary(FullModel)$sigma
+# mlv(x = BayesianFullModel.Posterior.All[,10], method = "naive")
+# mean(BayesianFullModel.Posterior.All[,10])
+# 
+# summary(FullModel)$sigma
 
 
 ```
@@ -729,7 +746,7 @@ BayesianFullModel2 = function(){
      Rsquare = variance.pred/(variance.pred + variance.error)
 }
 
-BayesianFullModel2.Results = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, 
+BayesianFullModel.Results2 = jags(data = BayesianFullModel.JAGS.Data, inits = BayesianFullModel.Init.Values, 
                                  parameters.to.save = c(BayesianFullModel.Parameters, "gamma.0"),
                                  model.file = BayesianFullModel2, n.chains = 4, n.iter = 50000, n.burnin = 20000, n.thin = 1)
 

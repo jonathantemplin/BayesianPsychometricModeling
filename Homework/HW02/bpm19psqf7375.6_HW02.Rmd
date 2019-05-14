@@ -2,7 +2,7 @@
 title: 'Homework #2'
 author: "Bayesian Psychometric Models"
 date: "Due Date: March 1, 2019 (15 points total)"
-output: html_document
+output: pdf_document
 ---
 
 This homework consists of four problems, with point totals varying by problem. Please submit your homework as an R Markdown file named FirstName_LastName.Rmd with answers to the questions clearly labeled. 
